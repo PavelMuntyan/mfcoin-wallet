@@ -48,6 +48,7 @@ export default function App() {
       ) : (
         <AccountDashboard state={state} onChange={setState} onLock={lock} />
       )}
+      <footer className="wallet-version">MFCOIN WALLET · V{chrome.runtime.getManifest().version}</footer>
     </main>
   );
 }

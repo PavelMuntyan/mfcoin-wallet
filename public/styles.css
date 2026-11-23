@@ -82,16 +82,23 @@ button:disabled { cursor: not-allowed; opacity: .5; }
 .form-error, .form-notice { margin: 18px 0 0; color: var(--accent); font-size: 13px; line-height: 1.5; }
 .section-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding-top: 44px; }
 .dashboard h1 { margin-bottom: 0; }
-.account-card { margin-top: 22px; padding: 20px; border: 1px solid var(--line); border-radius: 18px; background: var(--panel); }
-.account-card-heading { display: flex; align-items: center; gap: 13px; }
-.account-card-heading img { border-radius: 50%; }
+.account-card { position: relative; margin-top: 22px; padding: 20px; border: 1px solid var(--line); border-radius: 18px; background: var(--panel); }
+.account-card-switch { display: flex; align-items: center; justify-content: space-between; gap: 16px; width: 100%; padding: 0; border: 0; color: var(--text); background: transparent; cursor: pointer; text-align: left; }
+.account-card-switch:focus-visible { border-radius: 8px; outline: 2px solid var(--accent); outline-offset: 5px; }
+.account-card-switch:hover .account-card-title { color: var(--accent); }
+.account-card-heading { display: flex; align-items: center; gap: 13px; min-width: 0; }
+.account-card-heading img { flex-shrink: 0; border-radius: 50%; }
+.wallet-shell[data-theme="dark"] .account-card-heading img { filter: drop-shadow(0 0 1px rgba(255,255,255,.9)) drop-shadow(0 0 9px rgba(217,255,99,.4)); }
+.account-card-copy { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.account-card-title { overflow: hidden; font-size: 18px; font-weight: 750; text-overflow: ellipsis; white-space: nowrap; transition: color 180ms; }
+.account-card-meta { color: var(--muted); font-size: 13px; line-height: 1.5; }
 .account-card h2 { margin: 0 0 5px; font-size: 18px; }
 .account-card p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.5; }
 .address-button { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; margin-top: 18px; border: 1px solid var(--line); color: var(--text); background: var(--panel-soft); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; text-align: left; }
 .address-button span { color: var(--accent); font-family: inherit; }
 .empty-account { border-style: dashed; }
 .account-actions { margin-top: 28px; }
-.account-tabs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 5px; padding: 5px; border: 1px solid var(--line); border-radius: 14px; background: var(--panel); }
+.account-tabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 5px; padding: 5px; border: 1px solid var(--line); border-radius: 14px; background: var(--panel); }
 .account-tabs button { min-width: 0; padding: 10px 4px; border: 1px solid transparent; border-radius: 9px; color: var(--muted); background: transparent; cursor: pointer; font-size: 12px; font-weight: 750; }
 .account-tabs button:hover { color: var(--text); background: var(--panel-soft); }
 .account-tabs button[aria-selected="true"] { border-color: var(--accent); color: var(--accent-contrast); background: var(--accent); }
@@ -99,14 +106,8 @@ button:disabled { cursor: not-allowed; opacity: .5; }
 .account-tab-panel { margin-top: 12px; padding: 20px; border: 1px solid var(--line); border-radius: 14px; background: var(--panel); }
 .account-tab-panel h2 { margin: 0; color: var(--text); font-size: 18px; letter-spacing: -.025em; }
 .account-tab-panel .form-stack { margin-top: 0; }
-.wallets-panel > p { margin: 9px 0 0; color: var(--muted); font-size: 13px; line-height: 1.55; }
-.field-label { display: block; color: var(--muted); font-size: 12px; font-weight: 650; }
-.account-switcher { position: relative; margin-top: 20px; }
-.account-switcher-toggle { display: flex; align-items: center; justify-content: space-between; gap: 16px; width: 100%; margin-top: 7px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 11px; color: var(--text); background: var(--panel-soft); cursor: pointer; text-align: left; }
-.account-switcher-toggle:hover, .account-switcher-toggle[aria-expanded="true"] { border-color: var(--accent); }
-.account-switcher-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .account-chevron { flex: 0 0 20px; color: var(--accent); transition: transform 180ms; }
-.account-switcher-toggle[aria-expanded="true"] .account-chevron { transform: rotate(180deg); }
+.account-card-switch[aria-expanded="true"] .account-chevron { transform: rotate(180deg); }
 .account-option-copy { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .account-option-copy strong { overflow: hidden; font-size: 14px; text-overflow: ellipsis; white-space: nowrap; }
 .account-option-copy small { color: var(--muted); font-size: 11px; font-weight: 500; }

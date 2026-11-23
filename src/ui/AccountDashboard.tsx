@@ -9,11 +9,10 @@ interface Props {
   onLock: () => void;
 }
 
-type AccountTab = 'new' | 'wallets' | 'import' | 'watchOnly';
+type AccountTab = 'new' | 'import' | 'watchOnly';
 
 const ACCOUNT_TABS: { id: AccountTab; label: string }[] = [
   { id: 'new', label: 'New' },
-  { id: 'wallets', label: 'Wallets' },
   { id: 'import', label: 'Import' },
   { id: 'watchOnly', label: 'Watch-only' }
 ];
@@ -38,14 +37,14 @@ export default function AccountDashboard({ state, onChange, onLock }: Props) {
   const [privateKey, setPrivateKey] = useState('');
   const [watchAddress, setWatchAddress] = useState('');
   const [watchNetwork, setWatchNetwork] = useState<'testnet' | 'mainnet'>('testnet');
-  const [activeTab, setActiveTab] = useState<AccountTab>(state.accounts.length ? 'wallets' : 'new');
+  const [activeTab, setActiveTab] = useState<AccountTab>('new');
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const [backup, setBackup] = useState('');
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
-  const accountMenuRef = useRef<HTMLDivElement>(null);
+  const accountMenuRef = useRef<HTMLElement>(null);
 
   const current = state.accounts.find((account) => account.id === state.currentAccountId) || state.accounts[0];
 
@@ -150,17 +149,30 @@ export default function AccountDashboard({ state, onChange, onLock }: Props) {
       )}
 
       {current ? (
-        <article className="account-card">
-          <div className="account-card-heading">
-            <img src="images/mfcoin-original.svg" alt="" width="42" height="42" />
-            <div>
-              <h2>{current.name}</h2>
-              <p>{accountType(current)} · {current.network === 'mainnet' ? 'Mainnet · not live' : 'Testnet 112'}</p>
-            </div>
-          </div>
+        <article className="account-card" ref={accountMenuRef}>
+          <button className="account-card-switch" type="button" aria-label={`Choose account. Current: ${current.name}`} aria-haspopup="listbox" aria-expanded={accountMenuOpen} onClick={() => setAccountMenuOpen((open) => !open)} disabled={busy}>
+            <span className="account-card-heading">
+              <img src="images/mfcoin-original.svg" alt="" width="42" height="42" />
+              <span className="account-card-copy">
+                <span className="account-card-title">{current.name}</span>
+                <span className="account-card-meta">{accountType(current)} · {current.network === 'mainnet' ? 'Mainnet · not live' : 'Testnet 112'}</span>
+              </span>
+            </span>
+            <Chevron />
+          </button>
           <button className="address-button" type="button" onClick={copyAddress} title={current.address}>
             {shortAddress(current)} <span>{copied ? 'Copied' : 'Copy'}</span>
           </button>
+          {accountMenuOpen && (
+            <div className="account-options" role="listbox" aria-label="Available accounts">
+              {state.accounts.map((account) => (
+                <button key={account.id} type="button" role="option" aria-selected={account.id === current.id} onClick={() => chooseAccount(account.id)}>
+                  <span className="account-option-copy"><strong>{account.name}</strong><small>{accountType(account)} · {account.network === 'mainnet' ? 'Mainnet' : 'Testnet 112'}</small></span>
+                  <span className="account-selected" aria-hidden="true">{account.id === current.id ? '✓' : ''}</span>
+                </button>
+              ))}
+            </div>
+          )}
         </article>
       ) : (
         <article className="account-card empty-account">
@@ -212,34 +224,6 @@ export default function AccountDashboard({ state, onChange, onLock }: Props) {
               <label>Account name<input value={name} onChange={(event) => setName(event.target.value)} maxLength={32} required /></label>
               <button className="primary-button" type="submit" disabled={busy}>Create account</button>
             </form>
-          )}
-
-          {activeTab === 'wallets' && (
-            <div className="wallets-panel">
-              <h2>Your accounts</h2>
-              <p>Choose the account used for balances, receiving and transfers.</p>
-              {current ? (
-                <div className="account-switcher" ref={accountMenuRef}>
-                  <span className="field-label" id="active-account-label">Active account</span>
-                  <button className="account-switcher-toggle" type="button" aria-labelledby="active-account-label active-account-value" aria-haspopup="listbox" aria-expanded={accountMenuOpen} onClick={() => setAccountMenuOpen((open) => !open)} disabled={busy}>
-                    <span className="account-option-copy" id="active-account-value"><strong>{current.name}</strong><small>{accountType(current)} · {current.network === 'mainnet' ? 'Mainnet' : 'Testnet 112'}</small></span>
-                    <Chevron />
-                  </button>
-                  {accountMenuOpen && (
-                    <div className="account-options" role="listbox" aria-labelledby="active-account-label">
-                      {state.accounts.map((account) => (
-                        <button key={account.id} type="button" role="option" aria-selected={account.id === current.id} onClick={() => chooseAccount(account.id)}>
-                          <span className="account-option-copy"><strong>{account.name}</strong><small>{accountType(account)} · {account.network === 'mainnet' ? 'Mainnet' : 'Testnet 112'}</small></span>
-                          <span className="account-selected" aria-hidden="true">{account.id === current.id ? '✓' : ''}</span>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <p>No accounts yet. Create, import or watch an address first.</p>
-              )}
-            </div>
           )}
 
           {activeTab === 'import' && (
