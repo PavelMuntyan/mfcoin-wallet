@@ -29,12 +29,14 @@ export default function App() {
   return (
     <main className="wallet-shell" data-theme={theme}>
       <header className="topbar">
-        <a className="brand" href="https://mf.life" target="_blank" rel="noreferrer">
-          <img src="images/mfcoin-original.svg" alt="" width="42" height="42" />
-          <span>MFCOIN <strong>2.0</strong></span>
+        <a className="brand" href="https://mf.life" target="_blank" rel="noreferrer" aria-label="MFCoin 2.0 home">
+          <img src="images/mfcoin-original.svg" alt="" width="44" height="44" />
+          <span className="brand-name">MFCOIN</span>
+          <strong className="brand-version">2.0</strong>
         </a>
-        <button className="theme-button" type="button" onClick={changeTheme}>
-          {theme === 'dark' ? 'Light' : 'Dark'} theme
+        <button className="theme-button" type="button" onClick={changeTheme} aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`} aria-pressed={theme === 'dark'}>
+          <span className="theme-icon" aria-hidden="true">{theme === 'dark' ? '☀' : '☾'}</span>
+          <span className="theme-label">{theme === 'dark' ? 'Light' : 'Dark'} theme</span>
         </button>
       </header>
 

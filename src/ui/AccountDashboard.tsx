@@ -1,4 +1,4 @@
-import { FormEvent, useState } from 'react';
+import { FormEvent, useEffect, useRef, useState } from 'react';
 import { sendWalletRequest } from './api';
 import ChainPanel from './ChainPanel';
 import type { AccountResponse, PublicAccount, WalletState } from '../shared/accounts';
@@ -8,6 +8,15 @@ interface Props {
   onChange: (state: WalletState) => void;
   onLock: () => void;
 }
+
+type AccountTab = 'new' | 'wallets' | 'import' | 'watchOnly';
+
+const ACCOUNT_TABS: { id: AccountTab; label: string }[] = [
+  { id: 'new', label: 'New' },
+  { id: 'wallets', label: 'Wallets' },
+  { id: 'import', label: 'Import' },
+  { id: 'watchOnly', label: 'Watch-only' }
+];
 
 function shortAddress(account?: PublicAccount): string {
   if (!account) return '';
@@ -19,19 +28,42 @@ function accountType(account: PublicAccount): string {
   return account.kind === 'seed' ? 'Seed phrase' : 'Private key';
 }
 
+function Chevron() {
+  return <svg className="account-chevron" viewBox="0 0 20 20" width="20" height="20" aria-hidden="true"><path d="m5 7.5 5 5 5-5" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" /></svg>;
+}
+
 export default function AccountDashboard({ state, onChange, onLock }: Props) {
   const [name, setName] = useState(`Account ${state.accounts.length + 1}`);
   const [mnemonic, setMnemonic] = useState('');
   const [privateKey, setPrivateKey] = useState('');
   const [watchAddress, setWatchAddress] = useState('');
   const [watchNetwork, setWatchNetwork] = useState<'testnet' | 'mainnet'>('testnet');
+  const [activeTab, setActiveTab] = useState<AccountTab>(state.accounts.length ? 'wallets' : 'new');
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const [backup, setBackup] = useState('');
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
+  const accountMenuRef = useRef<HTMLDivElement>(null);
 
   const current = state.accounts.find((account) => account.id === state.currentAccountId) || state.accounts[0];
+
+  useEffect(() => {
+    if (!accountMenuOpen) return;
+    const closeOnOutsideClick = (event: MouseEvent) => {
+      if (!accountMenuRef.current?.contains(event.target as Node)) setAccountMenuOpen(false);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setAccountMenuOpen(false);
+    };
+    document.addEventListener('mousedown', closeOnOutsideClick);
+    document.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.removeEventListener('mousedown', closeOnOutsideClick);
+      document.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [accountMenuOpen]);
 
   async function run(action: () => Promise<Extract<AccountResponse, { ok: true }>>): Promise<Extract<AccountResponse, { ok: true }> | undefined> {
     setBusy(true);
@@ -85,6 +117,11 @@ export default function AccountDashboard({ state, onChange, onLock }: Props) {
     }
   }
 
+  async function chooseAccount(id: string) {
+    setAccountMenuOpen(false);
+    await run(() => sendWalletRequest({ type: 'accounts.select', request: { id } }));
+  }
+
   async function copyAddress() {
     if (!current) return;
     await navigator.clipboard.writeText(current.address);
@@ -132,59 +169,107 @@ export default function AccountDashboard({ state, onChange, onLock }: Props) {
         </article>
       )}
 
-      {state.accounts.length > 0 && (
-        <label>
-          Active account
-          <select value={current?.id || ''} onChange={(event) => run(() => sendWalletRequest({ type: 'accounts.select', request: { id: event.target.value } }))}>
-            {state.accounts.map((account) => (
-              <option key={account.id} value={account.id}>{account.name} · {accountType(account)}</option>
-            ))}
-          </select>
-        </label>
-      )}
-
       {current && <ChainPanel account={current} />}
 
       {error && <p className="form-error" role="alert">{error}</p>}
       {notice && <p className="form-notice" role="status">{notice}</p>}
 
       <div className="account-actions">
-        <details open={state.accounts.length === 0}>
-          <summary>Create account</summary>
-          <form className="form-stack" onSubmit={create}>
-            <p>Generate a new Sr25519 account and back up its seed phrase offline.</p>
-            <label>Account name<input value={name} onChange={(event) => setName(event.target.value)} maxLength={32} required /></label>
-            <button className="primary-button" type="submit" disabled={busy}>Create account</button>
-          </form>
-        </details>
+        <div className="account-tabs" role="tablist" aria-label="Account management" onKeyDown={(event) => {
+          const currentIndex = ACCOUNT_TABS.findIndex((tab) => tab.id === activeTab);
+          let nextIndex: number | undefined;
+          if (event.key === 'ArrowRight') nextIndex = (currentIndex + 1) % ACCOUNT_TABS.length;
+          if (event.key === 'ArrowLeft') nextIndex = (currentIndex - 1 + ACCOUNT_TABS.length) % ACCOUNT_TABS.length;
+          if (event.key === 'Home') nextIndex = 0;
+          if (event.key === 'End') nextIndex = ACCOUNT_TABS.length - 1;
+          if (nextIndex === undefined) return;
+          event.preventDefault();
+          const nextTab = ACCOUNT_TABS[nextIndex]!;
+          setActiveTab(nextTab.id);
+          document.getElementById(`account-tab-${nextTab.id}`)?.focus();
+        }}>
+          {ACCOUNT_TABS.map((tab) => (
+            <button
+              key={tab.id}
+              id={`account-tab-${tab.id}`}
+              type="button"
+              role="tab"
+              aria-selected={activeTab === tab.id}
+              aria-controls={`account-panel-${tab.id}`}
+              tabIndex={activeTab === tab.id ? 0 : -1}
+              onClick={() => setActiveTab(tab.id)}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
 
-        <details>
-          <summary>Import seed phrase</summary>
-          <form className="form-stack" onSubmit={importSeed}>
-            <label>Account name<input value={name} onChange={(event) => setName(event.target.value)} maxLength={32} required /></label>
-            <label>Seed phrase<textarea value={mnemonic} onChange={(event) => setMnemonic(event.target.value)} autoComplete="off" spellCheck={false} rows={3} required /></label>
-            <button className="primary-button" type="submit" disabled={busy}>Import seed phrase</button>
-          </form>
-        </details>
+        <section className="account-tab-panel" id={`account-panel-${activeTab}`} role="tabpanel" aria-labelledby={`account-tab-${activeTab}`}>
+          {activeTab === 'new' && (
+            <form className="form-stack" onSubmit={create}>
+              <h2>Create account</h2>
+              <p>Generate a new Sr25519 account and back up its seed phrase offline.</p>
+              <label>Account name<input value={name} onChange={(event) => setName(event.target.value)} maxLength={32} required /></label>
+              <button className="primary-button" type="submit" disabled={busy}>Create account</button>
+            </form>
+          )}
 
-        <details>
-          <summary>Import private key</summary>
-          <form className="form-stack" onSubmit={importKey}>
-            <label>Account name<input value={name} onChange={(event) => setName(event.target.value)} maxLength={32} required /></label>
-            <label>Private key<input type="password" value={privateKey} onChange={(event) => setPrivateKey(event.target.value)} autoComplete="off" placeholder="0x…" required /></label>
-            <button className="primary-button" type="submit" disabled={busy}>Import private key</button>
-          </form>
-        </details>
+          {activeTab === 'wallets' && (
+            <div className="wallets-panel">
+              <h2>Your accounts</h2>
+              <p>Choose the account used for balances, receiving and transfers.</p>
+              {current ? (
+                <div className="account-switcher" ref={accountMenuRef}>
+                  <span className="field-label" id="active-account-label">Active account</span>
+                  <button className="account-switcher-toggle" type="button" aria-labelledby="active-account-label active-account-value" aria-haspopup="listbox" aria-expanded={accountMenuOpen} onClick={() => setAccountMenuOpen((open) => !open)} disabled={busy}>
+                    <span className="account-option-copy" id="active-account-value"><strong>{current.name}</strong><small>{accountType(current)} · {current.network === 'mainnet' ? 'Mainnet' : 'Testnet 112'}</small></span>
+                    <Chevron />
+                  </button>
+                  {accountMenuOpen && (
+                    <div className="account-options" role="listbox" aria-labelledby="active-account-label">
+                      {state.accounts.map((account) => (
+                        <button key={account.id} type="button" role="option" aria-selected={account.id === current.id} onClick={() => chooseAccount(account.id)}>
+                          <span className="account-option-copy"><strong>{account.name}</strong><small>{accountType(account)} · {account.network === 'mainnet' ? 'Mainnet' : 'Testnet 112'}</small></span>
+                          <span className="account-selected" aria-hidden="true">{account.id === current.id ? '✓' : ''}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <p>No accounts yet. Create, import or watch an address first.</p>
+              )}
+            </div>
+          )}
 
-        <details>
-          <summary>Add watch-only account</summary>
-          <form className="form-stack" onSubmit={addWatchOnly}>
-            <label>Account name<input value={name} onChange={(event) => setName(event.target.value)} maxLength={32} required /></label>
-            <label>Network<select value={watchNetwork} onChange={(event) => setWatchNetwork(event.target.value as 'testnet' | 'mainnet')}><option value="testnet">Testnet 112</option><option value="mainnet">Mainnet · not live</option></select></label>
-            <label>Public address<input value={watchAddress} onChange={(event) => setWatchAddress(event.target.value)} placeholder={watchNetwork === 'mainnet' ? 'mfcx1…' : 'tmfcx1…'} autoComplete="off" required /></label>
-            <button className="primary-button" type="submit" disabled={busy}>Add watch-only</button>
-          </form>
-        </details>
+          {activeTab === 'import' && (
+            <div className="import-forms">
+              <form className="form-stack" onSubmit={importSeed}>
+                <h2>Import seed phrase</h2>
+                <label>Account name<input value={name} onChange={(event) => setName(event.target.value)} maxLength={32} required /></label>
+                <label>Seed phrase<textarea value={mnemonic} onChange={(event) => setMnemonic(event.target.value)} autoComplete="off" spellCheck={false} rows={3} required /></label>
+                <button className="primary-button" type="submit" disabled={busy}>Import seed phrase</button>
+              </form>
+              <form className="form-stack" onSubmit={importKey}>
+                <h2>Import private key</h2>
+                <label>Account name<input value={name} onChange={(event) => setName(event.target.value)} maxLength={32} required /></label>
+                <label>Private key<input type="password" value={privateKey} onChange={(event) => setPrivateKey(event.target.value)} autoComplete="off" placeholder="0x…" required /></label>
+                <button className="secondary-button" type="submit" disabled={busy}>Import private key</button>
+              </form>
+            </div>
+          )}
+
+          {activeTab === 'watchOnly' && (
+            <form className="form-stack" onSubmit={addWatchOnly}>
+              <h2>Add watch-only account</h2>
+              <p>Track a public address. Watch-only accounts can never sign transactions.</p>
+              <label>Account name<input value={name} onChange={(event) => setName(event.target.value)} maxLength={32} required /></label>
+              <label>Network<select className="network-select" value={watchNetwork} onChange={(event) => setWatchNetwork(event.target.value as 'testnet' | 'mainnet')}><option value="testnet">Testnet 112</option><option value="mainnet">Mainnet · not live</option></select></label>
+              <label>Public address<input value={watchAddress} onChange={(event) => setWatchAddress(event.target.value)} placeholder={watchNetwork === 'mainnet' ? 'mfcx1…' : 'tmfcx1…'} autoComplete="off" required /></label>
+              <button className="primary-button" type="submit" disabled={busy}>Add watch-only</button>
+            </form>
+          )}
+        </section>
       </div>
     </section>
   );
