@@ -32,6 +32,12 @@ A minimal, English-only browser wallet for the MFCoin community. The project int
 
 Community modules can extend these areas later without enlarging the trusted core.
 
+## Current status
+
+Implemented: PBKDF2/AES-GCM password vault, account creation with one-time seed backup, Sr25519 seed and private-key import, Testnet/Mainnet watch-only accounts, account switching, and lock/unlock. Secret storage was checked in Chrome to contain ciphertext only. Mainnet watch-only is display-only and marked `not live`; the public network is Testnet 112.
+
+Next: balances, receive, native transfer with gas preview, and indexer-backed history.
+
 ## Development
 
 Requires Node.js 20.20 or newer.
