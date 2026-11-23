@@ -9,8 +9,9 @@ A minimal, English-only browser wallet for the MFCoin community. The project int
 - Secrets are encrypted locally. No telemetry or remote account configuration.
 - Watch-only accounts cannot sign, including background calls.
 - Canonical `tmfcx` and `mfcx` validation with network mismatch protection.
-- Pinned genesis verification before any transaction.
-- Pending, finalized, failed and reorg-aware transaction states rather than optimistic success screens.
+- Pinned genesis verification before any chain query or transaction.
+- Spendable balance excludes frozen funds; existential deposit and fee data come from the connected chain.
+- A transfer is recorded only after its `ExtrinsicSuccess` event is finalized. Failed dispatches are not shown as successful.
 
 ## MVP scope
 
@@ -36,7 +37,9 @@ Community modules can extend these areas later without enlarging the trusted cor
 
 Implemented: PBKDF2/AES-GCM password vault, account creation with one-time seed backup, Sr25519 seed and private-key import, Testnet/Mainnet watch-only accounts, account switching, and lock/unlock. Secret storage was checked in Chrome to contain ciphertext only. Mainnet watch-only is display-only and marked `not live`; the public network is Testnet 112.
 
-Next: balances, receive, native transfer with gas preview, and indexer-backed history.
+Native MFC balances, Receive QR codes, signed Testnet transfers, runtime gas previews and finalized local history are implemented. Chrome verification covered balance queries, QR rendering, a nonzero fee preview, real signing, finalization, actual fee recording and history after reload. Watch-only signing, cross-network recipients and wrong-genesis RPC endpoints were rejected; a failed dispatch was not recorded as successful.
+
+History currently contains up to 100 successful native transfers initiated by this device. It is not a complete chain history. Indexer-backed incoming/token history and pagination remain next; token history depends on a supported token pallet.
 
 ## Development
 

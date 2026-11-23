@@ -1,5 +1,6 @@
 import { FormEvent, useState } from 'react';
 import { sendWalletRequest } from './api';
+import ChainPanel from './ChainPanel';
 import type { AccountResponse, PublicAccount, WalletState } from '../shared/accounts';
 
 interface Props {
@@ -141,6 +142,8 @@ export default function AccountDashboard({ state, onChange, onLock }: Props) {
           </select>
         </label>
       )}
+
+      {current && <ChainPanel account={current} />}
 
       {error && <p className="form-error" role="alert">{error}</p>}
       {notice && <p className="form-notice" role="status">{notice}</p>}

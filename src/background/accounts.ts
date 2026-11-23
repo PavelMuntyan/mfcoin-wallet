@@ -37,6 +37,11 @@ async function readAccounts(): Promise<PublicAccount[]> {
   return (await storageGet<PublicAccount[]>(ACCOUNTS_KEY)) || [];
 }
 
+export async function getAccountById(id: string): Promise<PublicAccount | undefined> {
+  const accounts = await readAccounts();
+  return accounts.find((account) => account.id === id);
+}
+
 async function saveAccounts(accounts: PublicAccount[], currentAccountId?: string): Promise<void> {
   await storageSet({ [ACCOUNTS_KEY]: accounts, [CURRENT_KEY]: currentAccountId });
 }

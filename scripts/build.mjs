@@ -2,6 +2,10 @@ import { build } from 'esbuild';
 import { cpSync, mkdirSync, rmSync } from 'node:fs';
 
 const production = process.env.NODE_ENV === 'production';
+const define = {
+  'process.env.MFCOIN_RPC_URL': JSON.stringify(process.env.MFCOIN_RPC_URL || ''),
+  'process.env.MFCOIN_GENESIS_HASH': JSON.stringify(process.env.MFCOIN_GENESIS_HASH || '')
+};
 
 rmSync('build', { force: true, recursive: true });
 mkdirSync('build', { recursive: true });
@@ -15,6 +19,7 @@ await Promise.all([
     format: 'esm',
     platform: 'browser',
     target: ['chrome111'],
+    define,
     minify: production,
     sourcemap: !production,
     logLevel: 'info'
@@ -26,6 +31,7 @@ await Promise.all([
     format: 'esm',
     platform: 'browser',
     target: ['chrome111'],
+    define,
     minify: production,
     sourcemap: !production,
     logLevel: 'info'

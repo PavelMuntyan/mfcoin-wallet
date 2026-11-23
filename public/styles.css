@@ -94,3 +94,26 @@ button:disabled { cursor: not-allowed; opacity: .5; }
 .backup-card p:not(.eyebrow) { color: var(--muted); font-size: 13px; line-height: 1.55; }
 .seed-backup { display: block; margin: 18px 0; padding: 16px; border-radius: 12px; color: var(--accent); background: var(--panel-soft); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 14px; line-height: 1.8; overflow-wrap: anywhere; user-select: all; }
 .dashboard > label { margin-top: 18px; }
+
+
+.chain-panel { display: grid; gap: 12px; margin-top: 18px; }
+.chain-panel details { border: 1px solid var(--line); border-radius: 14px; background: var(--panel); overflow: hidden; }
+.chain-panel summary { padding: 15px 16px; cursor: pointer; font-size: 14px; font-weight: 750; }
+.receive-content { display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 0 16px 18px; }
+.receive-qr { width: 220px; max-width: 100%; border-radius: 16px; }
+.full-address { display: block; max-width: 100%; color: var(--muted); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; line-height: 1.55; overflow-wrap: anywhere; text-align: center; user-select: all; }
+.balance-line { display: flex; align-items: center; gap: 10px; padding: 0 4px; color: var(--muted); font-size: 13px; }
+.balance-line strong { margin-left: auto; color: var(--accent); }
+.text-button { padding: 0; border: 0; color: var(--accent); background: transparent; cursor: pointer; font-size: 11px; }
+.send-panel form, .preview-card { padding: 0 16px 16px; }
+.preview-card { display: grid; gap: 8px; }
+.preview-card p { display: flex; justify-content: space-between; margin: 0; color: var(--muted); font-size: 13px; }
+.preview-card strong { color: var(--text); }
+.preview-card .primary-button { margin-top: 8px; }
+.watch-note { padding: 0 16px 16px; margin: 0; color: var(--muted); font-size: 13px; line-height: 1.55; }
+.history-list { display: grid; gap: 10px; padding: 0 16px 16px; }
+.history-list article { padding: 13px; border-radius: 11px; background: var(--panel-soft); }
+.history-list article > div { display: flex; justify-content: space-between; gap: 10px; }
+.history-list article > div span { color: var(--accent); font-size: 11px; }
+.history-list p { margin: 6px 0; color: var(--muted); font-size: 12px; }
+.history-list code { color: var(--muted); font-size: 11px; }

@@ -112,3 +112,10 @@ export async function storeSecret(id: string, secret: string): Promise<void> {
   const encrypted = await encrypt(secret, vaultKey);
   await storageSet({ [`mfcoin.secret.${id}`]: encrypted });
 }
+
+export async function readSecret(id: string): Promise<string> {
+  if (!vaultKey) throw new Error('Wallet is locked');
+  const encrypted = await storageGet<EncryptedValue>(`mfcoin.secret.${id}`);
+  if (!encrypted) throw new Error('Account secret not found');
+  return decrypt(encrypted, vaultKey);
+}
