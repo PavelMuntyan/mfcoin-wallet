@@ -177,3 +177,11 @@ button:disabled { cursor: not-allowed; opacity: .5; }
 
 .copy-secret-button { display: inline-flex; align-items: center; gap: 6px; }
 .copy-secret-button svg { flex-shrink: 0; }
+
+.export-format { display: grid; gap: 8px; }
+.export-format-buttons { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5px; padding: 5px; border: 1px solid var(--line); border-radius: 11px; background: var(--panel); }
+.export-format-buttons button { min-width: 0; padding: 10px 6px; border: 1px solid transparent; border-radius: 8px; color: var(--muted); background: transparent; cursor: pointer; font-size: 12px; font-weight: 750; }
+.export-format-buttons button:hover { color: var(--text); background: var(--panel-soft); }
+.export-format-buttons button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent-contrast); background: var(--accent); }
+.export-format-buttons button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.export-format small { color: var(--muted); font-size: 11px; }

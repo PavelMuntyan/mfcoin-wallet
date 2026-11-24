@@ -98,7 +98,14 @@ export default function SettingsPanel({ account, onChange, onDeleted }: Props) {
               <p>Export only in a private place. Anyone with this secret controls your funds. Screenshots, screen recordings, other applications and clipboard history can expose it.</p>
               <form className="form-stack" onSubmit={reveal}>
                 {account.kind === 'seed' && (
-                  <label>Export format<select value={format} onChange={(event) => { setFormat(event.target.value as SecretFormat); setSecret(''); }}><option value="seedPhrase">Seed phrase</option><option value="privateKey">Private key · 32-byte Sr25519 secret seed</option></select></label>
+                  <div className="export-format" role="group" aria-label="Export format">
+                    <span className="field-label">Export format</span>
+                    <div className="export-format-buttons">
+                      <button type="button" aria-pressed={format === 'seedPhrase'} onClick={() => { setFormat('seedPhrase'); setSecret(''); }}>Seed phrase</button>
+                      <button type="button" aria-pressed={format === 'privateKey'} onClick={() => { setFormat('privateKey'); setSecret(''); }}>Private key · Sr25519</button>
+                    </div>
+                    {format === 'privateKey' && <small>32-byte Sr25519 secret seed</small>}
+                  </div>
                 )}
                 <label>Wallet password<input type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" required /></label>
                 <button className="secondary-button" type="submit" disabled={busy}>Reveal secret for 10 seconds</button>
