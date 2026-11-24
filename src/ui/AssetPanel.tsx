@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, useEffect, useRef, useState } from 'react';
 import { sendChainRequest } from './api';
 import { formatAsset, formatMfc, shortHash } from './format';
 import type { PublicAccount } from '../shared/accounts';
@@ -11,6 +11,7 @@ const OPERATIONS: { id: AssetOperation; label: string }[] = [
 ];
 
 function historyTitle(entry: AssetHistoryEntry): string {
+  if (entry.status === 'metadataRequired') return 'Metadata required';
   if (entry.kind === 'metadataSet') return 'Metadata';
   if (entry.kind === 'burn') return 'Burn';
   if (entry.kind === 'created') return 'Create asset';
@@ -29,20 +30,25 @@ export default function AssetPanel({ account }: { account: PublicAccount }) {
   const [symbol, setSymbol] = useState('');
   const [decimals, setDecimals] = useState(12);
   const [preview, setPreview] = useState<AssetPreview>();
+  const [metadataId, setMetadataId] = useState('');
   const [result, setResult] = useState<AssetResult>();
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
+  const requestGeneration = useRef(0);
   const history = historyPage?.assetEvents || [];
   const hasPending = history.some((entry) => entry.accountId === account.accountId && entry.status === 'pending');
 
   useEffect(() => {
+    const generation = ++requestGeneration.current;
     setPreview(undefined);
+    setMetadataId('');
     setResult(undefined);
     setError('');
     setNotice('');
     setHistoryPage(undefined);
-    void refresh();
+    void refresh(generation);
+    return () => { requestGeneration.current += 1; };
   }, [account.id]);
 
   useEffect(() => {
@@ -57,29 +63,30 @@ export default function AssetPanel({ account }: { account: PublicAccount }) {
       : { operation, assetId, amount, recipient };
   }
 
-  async function loadAssets() {
+  async function loadAssets(generation = requestGeneration.current) {
     const response = await sendChainRequest<AssetBalances>({ type: 'chain.assets', request: { accountId: account.accountId } });
-    setBalances(response.data);
+    if (generation === requestGeneration.current) setBalances(response.data);
   }
 
-  async function loadHistory(direction?: HistoryDirection) {
+  async function loadHistory(direction?: HistoryDirection, generation = requestGeneration.current) {
     const cursor = direction === 'before' ? historyPage?.nextCursor : historyPage?.previousCursor;
     const response = await sendChainRequest<AssetHistoryPage>({ type: 'chain.assetHistory', request: { accountId: account.accountId, direction, cursor: cursor || undefined } });
-    setHistoryPage(response.data);
+    if (generation === requestGeneration.current) setHistoryPage(response.data);
   }
 
-  async function refresh() {
+  async function refresh(generation = requestGeneration.current) {
     try {
-      await Promise.all([loadAssets(), loadHistory()]);
-      setError('');
+      await Promise.all([loadAssets(generation), loadHistory(undefined, generation)]);
+      if (generation === requestGeneration.current) setError('');
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Unable to load community assets');
+      if (generation === requestGeneration.current) setError(caught instanceof Error ? caught.message : 'Unable to load community assets');
     }
   }
 
   function changeOperation(next: AssetOperation) {
     setOperation(next);
     setPreview(undefined);
+    setMetadataId('');
     setResult(undefined);
     setError('');
     setNotice('');
@@ -87,39 +94,71 @@ export default function AssetPanel({ account }: { account: PublicAccount }) {
 
   async function calculate(event: FormEvent) {
     event.preventDefault();
+    const generation = requestGeneration.current;
+    setBusy(true);
+    setError('');
+    setNotice('');
+    setResult(undefined);
+    setMetadataId('');
+    try {
+      const response = await sendChainRequest<AssetPreview>({ type: 'chain.assetPreview', request: { sender: account.accountId, input: input() } });
+      if (generation === requestGeneration.current) setPreview(response.data);
+    } catch (caught) {
+      if (generation === requestGeneration.current) {
+        setPreview(undefined);
+        setError(caught instanceof Error ? caught.message : 'Unable to preview asset operation');
+      }
+    } finally {
+      if (generation === requestGeneration.current) setBusy(false);
+    }
+  }
+
+  async function reviewMetadata(entry: AssetHistoryEntry) {
+    if (!entry.id) return;
+    const generation = requestGeneration.current;
     setBusy(true);
     setError('');
     setNotice('');
     setResult(undefined);
     try {
-      const response = await sendChainRequest<AssetPreview>({ type: 'chain.assetPreview', request: { sender: account.accountId, input: input() } });
-      setPreview(response.data);
+      const response = await sendChainRequest<AssetPreview>({ type: 'chain.assetMetadataPreview', request: { accountId: account.id, historyId: entry.id } });
+      if (generation === requestGeneration.current) {
+        setMetadataId(entry.id);
+        setPreview(response.data);
+      }
     } catch (caught) {
-      setPreview(undefined);
-      setError(caught instanceof Error ? caught.message : 'Unable to preview asset operation');
+      if (generation === requestGeneration.current) setError(caught instanceof Error ? caught.message : 'Unable to preview metadata');
     } finally {
-      setBusy(false);
+      if (generation === requestGeneration.current) setBusy(false);
     }
   }
 
   async function submit() {
     if (!preview || hasPending) return;
+    const generation = requestGeneration.current;
     setBusy(true);
     setError('');
     setNotice('');
     try {
-      const response = await sendChainRequest<AssetResult>({ type: 'chain.assetSubmit', request: { accountId: account.id, input: input(), maxFee: preview.fee } });
+      const response = metadataId
+        ? await sendChainRequest<AssetResult>({ type: 'chain.assetMetadataSubmit', request: { accountId: account.id, historyId: metadataId, maxFee: preview.fee } })
+        : await sendChainRequest<AssetResult>({ type: 'chain.assetSubmit', request: { accountId: account.id, input: input(), maxFee: preview.fee } });
+      if (generation !== requestGeneration.current) return;
       setResult(response.data);
       setPreview(undefined);
-      if (response.data.status === 'finalized') setNotice(response.data.operation === 'create' ? 'Asset and metadata finalized in two transactions' : 'Asset transaction finalized');
+      setMetadataId('');
+      if (response.data.status === 'finalized') setNotice(metadataId ? 'Asset metadata finalized' : response.data.operation === 'create' ? 'Asset and metadata finalized in two transactions' : 'Asset transaction finalized');
+      else if (response.data.status === 'metadataRequired') setNotice('Asset created. Review and sign its metadata to finish.');
       else if (response.data.status === 'pending') setNotice('Submitted. Waiting for finalization; do not submit it again.');
       else setError('Asset transaction was not finalized successfully. Review its history before trying again.');
-      await refresh();
+      await refresh(generation);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Asset transaction failed');
-      await refresh();
+      if (generation === requestGeneration.current) {
+        setError(caught instanceof Error ? caught.message : 'Asset transaction failed');
+        await refresh(generation);
+      }
     } finally {
-      setBusy(false);
+      if (generation === requestGeneration.current) setBusy(false);
     }
   }
 
@@ -131,11 +170,11 @@ export default function AssetPanel({ account }: { account: PublicAccount }) {
           <p className="watch-note">This runtime does not support community assets yet.</p>
         ) : (
           <>
-            {balances.truncated && <p className="watch-note">Only the first 200 indexed assets were checked.</p>}
+            {balances.truncated && <p className="watch-note">Only the first 200 indexed asset balances were loaded.</p>}
             <div className="asset-balances">
               {balances.assets.length ? balances.assets.map((asset) => (
-                <button key={asset.assetId} type="button" onClick={() => { setAssetId(String(asset.assetId)); changeOperation('transfer'); }}>
-                  <span><strong>{asset.symbol || `#${asset.assetId}`}</strong><small>{asset.name || `Asset ${asset.assetId}`} · ID {asset.assetId}</small></span>
+                <button key={asset.assetId} type="button" title={`Unverified community asset. Owner: ${asset.ownerAddress}`} onClick={() => { setAssetId(String(asset.assetId)); changeOperation('transfer'); }}>
+                  <span><strong>{asset.symbol || `#${asset.assetId}`}</strong><small>{asset.name || `Asset ${asset.assetId}`} · ID {asset.assetId} · UNVERIFIED</small></span>
                   <b>{formatAsset(asset.balance || '0', asset.decimals, asset.symbol)}</b>
                 </button>
               )) : <p className="watch-note">No community asset balances on this account.</p>}
@@ -152,7 +191,7 @@ export default function AssetPanel({ account }: { account: PublicAccount }) {
             <form className="form-stack" onSubmit={calculate}>
               {operation === 'create' ? (
                 <>
-                  <p>Create reserves 100 MFC plus metadata deposits. Creation and metadata are signed as two consecutive transactions.</p>
+                  <p>Create reserves 100 MFC plus metadata deposits. Creation and metadata are reviewed and signed separately. Names and symbols are unverified.</p>
                   <label>Asset name<input value={name} onChange={(event) => { setName(event.target.value); setPreview(undefined); }} maxLength={64} required /></label>
                   <label>Symbol<input value={symbol} onChange={(event) => { setSymbol(event.target.value.toUpperCase()); setPreview(undefined); }} maxLength={16} required /></label>
                   <label>Decimals<input type="number" min={0} max={18} step={1} value={decimals} onChange={(event) => { setDecimals(Number(event.target.value)); setPreview(undefined); }} required /></label>
@@ -169,13 +208,13 @@ export default function AssetPanel({ account }: { account: PublicAccount }) {
             </form>
             {preview && (
               <div className="preview-card">
-                <div className="confirmation-address"><span>{preview.operation.toUpperCase()} · ASSET #{preview.assetId} · TESTNET 115</span><code>{preview.name || 'Metadata is not set'} {preview.symbol ? `(${preview.symbol})` : ''}</code></div>
+                <div className="confirmation-address"><span>{metadataId ? 'SET METADATA' : preview.operation.toUpperCase()} · ASSET #{preview.assetId} · TESTNET 115 · UNVERIFIED</span><code>{preview.name || 'Metadata is not set'} {preview.symbol ? `(${preview.symbol})` : ''}</code></div>
                 {preview.recipient && <div className="confirmation-address"><span>Recipient</span><code>{preview.recipient}</code></div>}
                 {preview.operation !== 'create' && <p>Amount <strong>{formatAsset(preview.amount, preview.decimals, preview.symbol)}</strong></p>}
-                <p>Maximum total gas <strong>{formatMfc(preview.fee)}</strong></p>
-                <p>Gas + refundable reserves <strong>{formatMfc(preview.nativeTotal)}</strong></p>
+                <p>{metadataId ? 'Maximum total gas (create + metadata)' : 'Maximum total gas'} <strong>{formatMfc(preview.fee)}</strong></p>
+                <p>{metadataId ? 'Metadata gas + reserve' : 'Gas + refundable reserves'} <strong>{formatMfc(preview.nativeTotal)}</strong></p>
                 <p>Remaining native MFC <strong>{formatMfc(preview.remaining)}</strong></p>
-                <button className="primary-button" type="button" disabled={busy || hasPending} onClick={submit}>{preview.operation === 'create' ? 'Sign two transactions' : 'Sign and send'}</button>
+                <button className="primary-button" type="button" disabled={busy || hasPending} onClick={submit}>{metadataId ? 'Sign metadata' : preview.operation === 'create' ? 'Sign asset creation' : 'Sign and send'}</button>
               </div>
             )}
             {result && <p className="form-notice">{result.status}: <code>{shortHash(result.hash)}</code></p>}
@@ -189,13 +228,16 @@ export default function AssetPanel({ account }: { account: PublicAccount }) {
           <h3>Asset history</h3>
           {historyPage?.source === 'local' && <p className="watch-note">Explorer is unavailable. Showing local asset history only.</p>}
           {history.length ? history.map((entry) => (
-            <a className="history-entry" key={entry.id || entry.hash} href={entry.hash ? `https://mf.life/explorer/#/tx/${entry.hash}` : `https://mf.life/explorer/#/asset/${entry.assetId}`} target="_blank" rel="noreferrer">
-              <div><strong>{historyTitle(entry)} · #{entry.assetId}</strong><span>{entry.status}</span></div>
-              <p>{entry.amount && entry.decimals !== undefined ? formatAsset(entry.amount, entry.decimals, entry.symbol || '') : entry.name || entry.symbol || 'Asset operation'}</p>
-              <p>Fee {formatMfc(entry.fee)}{entry.stage === 'metadata' ? ' · two transactions' : ''}</p>
-              {entry.error && <p>{entry.error}</p>}
-              <code>{entry.hash ? shortHash(entry.hash) : `Block #${entry.blockNumber}`}</code>
-            </a>
+            <article className="history-entry" key={entry.id || entry.hash}>
+              <a href={entry.hash ? `https://mf.life/explorer/#/tx/${entry.hash}` : `https://mf.life/explorer/#/asset/${entry.assetId}`} target="_blank" rel="noreferrer">
+                <div><strong>{historyTitle(entry)} · #{entry.assetId}</strong><span>{entry.status}</span></div>
+                <p>{entry.amount && entry.decimals !== undefined ? formatAsset(entry.amount, entry.decimals, entry.symbol || '') : entry.name || entry.symbol || 'Asset operation'}</p>
+                <p>Fee {formatMfc(entry.fee)}{entry.stage === 'metadata' ? ' · two transactions' : ''}</p>
+                {entry.error && <p>{entry.error}</p>}
+                <code>{entry.hash ? shortHash(entry.hash) : `Block #${entry.blockNumber}`}</code>
+              </a>
+              {entry.status === 'metadataRequired' && <button className="secondary-button" type="button" disabled={busy} onClick={() => reviewMetadata(entry)}>Review metadata</button>}
+            </article>
           )) : <p className="watch-note">No asset operations yet.</p>}
           <nav className="pagination-controls" aria-label="Asset history pages">
             <button className="load-more" type="button" hidden={!historyPage?.hasNewer} onClick={() => loadHistory('after')}>← Newer 30</button>

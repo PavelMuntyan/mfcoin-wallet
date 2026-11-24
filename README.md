@@ -18,12 +18,12 @@ A lightweight, English-only, non-custodial browser wallet for the MFCoin communi
 - Create an Sr25519 account with mandatory backup confirmation.
 - Import seed phrases and 32-byte private keys; add and switch watch-only accounts.
 - Native MFC spendable balance and canonical Receive QR codes.
-- Runtime gas preview with full recipient/network confirmation and a user-approved maximum fee.
+- Runtime gas preview with full recipient/network confirmation and a fee cap rechecked immediately before signing.
 - Mortal transfers with a 64-block lifetime, `pending`, `finalized`, `failed` and `dropped` states.
-- Pending history is stored before broadcast and reconciled after timeout or service-worker restart. A second transfer from the same account is blocked while it is pending.
-- Explorer-backed incoming and outgoing history with rewards, fees, 30-event pages and links to finalized blocks and transactions. Local pending entries are merged without duplication; Explorer outages fall back to a clearly marked local-only view.
-- Native community-asset balances and 30-event account history. Create assets with metadata in two consecutive signed transactions, mint as the issuer and transfer with decimal-aware validation.
-- Asset operations revalidate the account, network, public key, genesis, issuer or balance and a user-approved maximum fee in the background. Pending create/metadata stages can be reconciled after a service-worker restart without rebroadcasting the current transaction.
+- Pending history is stored before broadcast and reconciled only through the mortal expiry block after timeout or service-worker restart. Native and asset operations share an account lock and cross-history pending checks.
+- Explorer-backed incoming and outgoing history with rewards, fees, 30-event pages and links to finalized blocks and transactions. Responses are schema-validated; Explorer outages fall back to a clearly marked local-only view.
+- Native community-asset balances and 30-event account history. Assets are always marked unverified and identified by ID. Create and metadata are reviewed and signed separately, with an explicit retry after failed or expired metadata.
+- Asset operations revalidate the account, network, public key, genesis, issuer or balance and a user-approved fee cap in the background. Pending operations are bounded by their mortal expiry and never rebroadcast automatically.
 - Settings with password-gated seed/private-key export, timed reveal, clipboard copy and account deletion.
 - MF Life visual language, dark theme by default and a light-theme toggle.
 
@@ -45,6 +45,7 @@ Requires Node.js 20.20 or newer.
 ```sh
 npm ci
 npm run typecheck
+npm test
 NODE_ENV=production npm run build
 ```
 
@@ -54,4 +55,4 @@ For a local devnet, set `MFCOIN_RPC_URL`, `MFCOIN_GENESIS_HASH` and optionally `
 
 ## Verification
 
-Chrome checks covered backup rejection/confirmation, password-gated export and deletion, legacy ciphertext migration, AAD-bound ciphertext rejection, real native signing, recipient confirmation, fee-cap rejection, `pending → finalized` reconciliation without duplication, automatic locking and masked Settings. TypeScript and production builds pass. `npm audit --omit=dev` reports no known vulnerabilities.
+`npm test` covers mortal-expiry bounds, cross-history pending detection, exclusive account locks, explicit metadata requirements and malformed Explorer responses. TypeScript and production builds pass. `npm audit --omit=dev` reports no known vulnerabilities.

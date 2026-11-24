@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, useEffect, useRef, useState } from 'react';
 import { toDataURL } from 'qrcode';
 import { sendChainRequest } from './api';
 import { formatMfc, shortHash } from './format';
@@ -41,11 +41,12 @@ export default function ChainPanel({ account, onChange, onDeleted }: Props) {
   const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
+  const requestGeneration = useRef(0);
   const history = historyPage?.balanceEvents || [];
   const hasPending = history.some((entry) => entry.sender === account.accountId && entry.status === 'pending');
 
   useEffect(() => {
-    let cancelled = false;
+    const generation = ++requestGeneration.current;
     setPreview(undefined);
     setResult(undefined);
     setError('');
@@ -53,14 +54,14 @@ export default function ChainPanel({ account, onChange, onDeleted }: Props) {
     setBalance('');
     setHistoryPage(undefined);
     toDataURL(account.address, { errorCorrectionLevel: 'M', margin: 2, width: 220, color: { dark: '#0b0d0a', light: '#d9ff63' } })
-      .then((value) => !cancelled && setQr(value))
-      .catch(() => !cancelled && setQr(''));
+      .then((value) => generation === requestGeneration.current && setQr(value))
+      .catch(() => generation === requestGeneration.current && setQr(''));
 
     if (account.network === 'testnet') {
-      void loadBalance();
-      void loadHistory();
+      void loadBalance(generation);
+      void loadHistory(undefined, generation);
     }
-    return () => { cancelled = true; };
+    return () => { requestGeneration.current += 1; };
   }, [account.id]);
 
   useEffect(() => {
@@ -69,22 +70,22 @@ export default function ChainPanel({ account, onChange, onDeleted }: Props) {
     return () => clearInterval(timer);
   }, [hasPending, account.id]);
 
-  async function loadBalance() {
+  async function loadBalance(generation = requestGeneration.current) {
     try {
       const response = await sendChainRequest<BalanceView>({ type: 'chain.balance', request: { accountId: account.accountId } });
-      setBalance(response.data.free);
+      if (generation === requestGeneration.current) setBalance(response.data.free);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Unable to load balance');
+      if (generation === requestGeneration.current) setError(caught instanceof Error ? caught.message : 'Unable to load balance');
     }
   }
 
-  async function loadHistory(direction?: HistoryDirection) {
+  async function loadHistory(direction?: HistoryDirection, generation = requestGeneration.current) {
     try {
       const cursor = direction === 'before' ? historyPage?.nextCursor : historyPage?.previousCursor;
       const response = await sendChainRequest<HistoryPage>({ type: 'chain.history', request: { accountId: account.accountId, direction, cursor: cursor || undefined } });
-      setHistoryPage(response.data);
+      if (generation === requestGeneration.current) setHistoryPage(response.data);
     } catch {
-      setHistoryPage({ balanceEvents: [], nextCursor: null, previousCursor: null, hasOlder: false, hasNewer: false, source: 'local' });
+      if (generation === requestGeneration.current) setHistoryPage({ balanceEvents: [], nextCursor: null, previousCursor: null, hasOlder: false, hasNewer: false, source: 'local' });
     }
   }
 
@@ -96,28 +97,33 @@ export default function ChainPanel({ account, onChange, onDeleted }: Props) {
 
   async function previewTransfer(event: FormEvent) {
     event.preventDefault();
+    const generation = requestGeneration.current;
     setBusy(true);
     setError('');
     setNotice('');
     setResult(undefined);
     try {
       const response = await sendChainRequest<TransferPreview>({ type: 'chain.preview', request: { sender: account.accountId, recipient: recipient.trim(), amount } });
-      setPreview(response.data);
+      if (generation === requestGeneration.current) setPreview(response.data);
     } catch (caught) {
-      setPreview(undefined);
-      setError(caught instanceof Error ? caught.message : 'Unable to calculate fee');
+      if (generation === requestGeneration.current) {
+        setPreview(undefined);
+        setError(caught instanceof Error ? caught.message : 'Unable to calculate fee');
+      }
     } finally {
-      setBusy(false);
+      if (generation === requestGeneration.current) setBusy(false);
     }
   }
 
   async function confirmTransfer() {
     if (!preview || hasPending) return;
+    const generation = requestGeneration.current;
     setBusy(true);
     setError('');
     setNotice('');
     try {
       const response = await sendChainRequest<TransferResult>({ type: 'chain.transfer', request: { accountId: account.id, recipient: recipient.trim(), amount, maxFee: preview.fee } });
+      if (generation !== requestGeneration.current) return;
       setResult(response.data);
       setPreview(undefined);
       setRecipient('');
@@ -126,11 +132,11 @@ export default function ChainPanel({ account, onChange, onDeleted }: Props) {
       else if (response.data.status === 'pending') setNotice('Transaction submitted. Waiting for finalization; do not submit it again.');
       else if (response.data.status === 'dropped') setError('Transaction expired or was dropped. Review it before trying again.');
       else setError('Transaction was included but failed. Review the history before trying again.');
-      await Promise.all([loadBalance(), loadHistory()]);
+      await Promise.all([loadBalance(generation), loadHistory(undefined, generation)]);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Transfer failed');
+      if (generation === requestGeneration.current) setError(caught instanceof Error ? caught.message : 'Transfer failed');
     } finally {
-      setBusy(false);
+      if (generation === requestGeneration.current) setBusy(false);
     }
   }
 
@@ -150,7 +156,7 @@ export default function ChainPanel({ account, onChange, onDeleted }: Props) {
         <div className="balance-line">
           <span>Available</span>
           <strong>{balance ? formatMfc(balance) : 'Loading…'}</strong>
-          <button className="text-button" type="button" onClick={loadBalance}>Refresh</button>
+          <button className="text-button" type="button" onClick={() => loadBalance()}>Refresh</button>
         </div>
       )}
 
@@ -167,7 +173,7 @@ export default function ChainPanel({ account, onChange, onDeleted }: Props) {
             <div className="preview-card">
               <div className="confirmation-address"><span>Recipient · Testnet 115</span><code>{recipient.trim()}</code></div>
               <p>Amount <strong>{formatMfc(preview.amount)}</strong></p>
-              <p>Maximum gas fee <strong>{formatMfc(preview.fee)}</strong></p>
+              <p>Fee cap checked again before signing <strong>{formatMfc(preview.fee)}</strong></p>
               <p>Total <strong>{formatMfc(preview.total)}</strong></p>
               <p>Remaining <strong>{formatMfc(preview.remaining)}</strong></p>
               <button className="primary-button" type="button" disabled={busy || hasPending} onClick={confirmTransfer}>Sign and send</button>

@@ -8,6 +8,9 @@ import { decodeAddress, encodeAddress } from '../lib/mfc-address.js';
 import type { BalanceView, HistoryDirection, HistoryEntry, HistoryPage, TransferPreview, TransferResult, TransferStatus } from '../shared/chain';
 import { getAccountById } from './accounts';
 import { readSecret } from './vault';
+import { acquireAccountLock, hasPendingTransaction } from './transaction-lock';
+import { validateHistoryPage } from './explorer-validation';
+import { reconciliationExpired, reconciliationScanUntil } from './reconcile';
 
 const RPC_URL = process.env.MFCOIN_RPC_URL || 'wss://mf.life/ws';
 const EXPLORER_URL = process.env.MFCOIN_EXPLORER_URL || 'https://mf.life/api/explorer';
@@ -162,7 +165,8 @@ async function reconcileEntry(api: ApiPromise, entry: HistoryEntry): Promise<voi
   const finalizedHeader = await api.rpc.chain.getHeader(finalizedHash);
   const finalizedNumber = finalizedHeader.number.toNumber();
   let checked = entry.lastCheckedNumber ?? 0;
-  for (let number = checked + 1; number <= finalizedNumber; number += 1) {
+  const scanUntil = reconciliationScanUntil(finalizedNumber, entry.expiresAfter);
+  for (let number = checked + 1; number <= scanUntil; number += 1) {
     const blockHash = await api.rpc.chain.getBlockHash(number);
     const block = await api.rpc.chain.getBlock(blockHash);
     const extrinsicIndex = block.block.extrinsics.findIndex((item) => item.hash.toHex() === entry.hash);
@@ -183,8 +187,9 @@ async function reconcileEntry(api: ApiPromise, entry: HistoryEntry): Promise<voi
       return;
     }
     checked = number;
+    if (checked % 8 === 0) await upsertHistory({ ...entry, lastCheckedNumber: checked });
   }
-  const status: TransferStatus = entry.expiresAfter !== undefined && finalizedNumber > entry.expiresAfter ? 'dropped' : 'pending';
+  const status: TransferStatus = reconciliationExpired(finalizedNumber, entry.expiresAfter) ? 'dropped' : 'pending';
   await upsertHistory({ ...entry, status, lastCheckedNumber: checked });
 }
 
@@ -203,14 +208,11 @@ async function reconcilePending(): Promise<void> {
   }
 }
 
-export async function transfer(accountId: string, recipient: string, amount: string, maxFee: string): Promise<TransferResult> {
+async function transferUnlocked(accountId: string, recipient: string, amount: string, maxFee: string): Promise<TransferResult> {
   const account = await getAccountById(accountId);
   if (!account) throw new Error('Account not found');
   if (account.kind === 'watchOnly') throw new Error('Watch-only accounts cannot sign');
   if (account.network !== 'testnet') throw new Error('Mainnet transfers are not live');
-  if ((await readHistory()).some((entry) => entry.sender === account.accountId && entry.status === 'pending')) {
-    throw new Error('A transaction is already pending for this account');
-  }
 
   const preview = await createPreview(account.accountId, recipient, amount);
   if (!/^\d+$/.test(maxFee)) throw new Error('A valid maximum fee is required');
@@ -301,6 +303,18 @@ export async function transfer(accountId: string, recipient: string, amount: str
   };
 }
 
+export async function transfer(accountId: string, recipient: string, amount: string, maxFee: string): Promise<TransferResult> {
+  const release = acquireAccountLock(accountId);
+  try {
+    const account = await getAccountById(accountId);
+    if (!account) throw new Error('Account not found');
+    if (await hasPendingTransaction(accountId, account.accountId)) throw new Error('A transaction is already pending for this account');
+    return await transferUnlocked(accountId, recipient, amount, maxFee);
+  } finally {
+    release();
+  }
+}
+
 interface ExplorerMovement {
   id: string;
   blockNumber: number;
@@ -351,8 +365,7 @@ export async function getHistory(accountId: string, direction?: HistoryDirection
       signal: (AbortSignal as unknown as { timeout(milliseconds: number): AbortSignal }).timeout(10_000)
     });
     if (!response.ok) throw new Error('Explorer history is unavailable');
-    const page = await response.json() as ExplorerHistoryPage;
-    if (!Array.isArray(page.balanceEvents)) throw new Error('Invalid Explorer history response');
+    const page = validateHistoryPage(await response.json()) as ExplorerHistoryPage;
     const events = page.balanceEvents.map(mapExplorerMovement);
     const localOnly = localHistory.filter((local) => !local.hash || !events.some((event) => event.hash === local.hash));
     const balanceEvents = direction ? events : [...events, ...localOnly].sort((a, b) => b.timestamp - a.timestamp);

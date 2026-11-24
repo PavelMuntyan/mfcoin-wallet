@@ -1,8 +1,8 @@
 import type { AccountRequest, AccountResponse, WalletState } from './shared/accounts';
 import type { ChainRequest, ChainResponse } from './shared/chain';
-import { addWatchOnly, confirmBackup, createAccount, exportSecret, getAccountById, getState, importPrivateKey, importSeed, removeAccount, selectAccount } from './background/accounts';
+import { addWatchOnly, confirmBackup, createAccount, discardPendingCreation, exportSecret, getAccountById, getState, importPrivateKey, importSeed, removeAccount, selectAccount } from './background/accounts';
 import { deleteHistoryForAccount, getBalance, getHistory, previewTransfer, transfer } from './background/chain';
-import { deleteAssetHistoryForAccount, getAssetHistory, getAssets, previewAssetOperation, submitAssetOperation } from './background/assets';
+import { deleteAssetHistoryForAccount, getAssetHistory, getAssets, previewAssetOperation, previewPendingMetadata, submitAssetOperation, submitPendingMetadata } from './background/assets';
 import { createVault, lockVault, unlockVault } from './background/vault';
 
 async function handle(request: AccountRequest): Promise<AccountResponse> {
@@ -21,6 +21,7 @@ async function handle(request: AccountRequest): Promise<AccountResponse> {
         state = await getState();
         break;
       case 'wallet.lock':
+        discardPendingCreation();
         lockVault();
         state = await getState();
         break;
@@ -89,6 +90,12 @@ async function handleChain(request: ChainRequest): Promise<ChainResponse<unknown
         break;
       case 'chain.assetSubmit':
         data = await submitAssetOperation(request.request.accountId, request.request.input, request.request.maxFee);
+        break;
+      case 'chain.assetMetadataPreview':
+        data = await previewPendingMetadata(request.request.accountId, request.request.historyId);
+        break;
+      case 'chain.assetMetadataSubmit':
+        data = await submitPendingMetadata(request.request.accountId, request.request.historyId, request.request.maxFee);
         break;
       case 'chain.assetHistory':
         data = await getAssetHistory(request.request.accountId, request.request.direction, request.request.cursor);

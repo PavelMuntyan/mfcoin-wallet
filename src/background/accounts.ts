@@ -90,6 +90,10 @@ function backupWordIndexes(): number[] {
   return [...indexes].sort((a, b) => a - b);
 }
 
+export function discardPendingCreation(): void {
+  pendingCreation = undefined;
+}
+
 export async function createAccount(name: string): Promise<{ state: WalletState; backup: BackupChallenge }> {
   if (!isUnlocked()) throw new Error('Wallet is locked');
   const accounts = await readAccounts();

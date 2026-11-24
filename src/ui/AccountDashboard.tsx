@@ -41,6 +41,7 @@ export default function AccountDashboard({ state, onChange, onLock }: Props) {
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const [backup, setBackup] = useState<BackupChallenge>();
   const [backupWords, setBackupWords] = useState<string[]>([]);
+  const [backupHidden, setBackupHidden] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
@@ -86,6 +87,7 @@ export default function AccountDashboard({ state, onChange, onLock }: Props) {
     const response = await run(() => sendWalletRequest({ type: 'accounts.create', request: { name } }));
     if (response?.backup) {
       setBackup(response.backup);
+      setBackupHidden(false);
       setBackupWords(response.backup.wordIndexes.map(() => ''));
       setName(`Account ${response.state.accounts.length + 2}`);
     }
@@ -156,17 +158,21 @@ export default function AccountDashboard({ state, onChange, onLock }: Props) {
           <p className="eyebrow">SAVE THIS SEED PHRASE OFFLINE</p>
           <h2>Confirm your backup.</h2>
           <p>Write these words down. The account will not be activated until you confirm three randomly selected words.</p>
-          <code className="seed-backup">{backup.mnemonic}</code>
-          <form className="form-stack" onSubmit={confirmBackup}>
-            {backup.wordIndexes.map((wordIndex, index) => (
-              <label key={wordIndex}>Word #{wordIndex + 1}<input value={backupWords[index] || ''} onChange={(event) => {
-                const words = [...backupWords];
-                words[index] = event.target.value;
-                setBackupWords(words);
-              }} autoComplete="off" spellCheck={false} required /></label>
-            ))}
-            <button className="primary-button" type="submit" disabled={busy}>Verify backup and create account</button>
-          </form>
+          <code className="seed-backup">{backupHidden ? '••••••••••••••••••••••••' : backup.mnemonic}</code>
+          {!backupHidden ? (
+            <button className="primary-button" type="button" onClick={() => setBackupHidden(true)}>I wrote down the seed phrase</button>
+          ) : (
+            <form className="form-stack" onSubmit={confirmBackup}>
+              {backup.wordIndexes.map((wordIndex, index) => (
+                <label key={wordIndex}>Word #{wordIndex + 1}<input value={backupWords[index] || ''} onChange={(event) => {
+                  const words = [...backupWords];
+                  words[index] = event.target.value;
+                  setBackupWords(words);
+                }} autoComplete="off" spellCheck={false} required /></label>
+              ))}
+              <button className="primary-button" type="submit" disabled={busy}>Verify backup and create account</button>
+            </form>
+          )}
         </section>
       )}
 

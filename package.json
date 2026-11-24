@@ -1,12 +1,13 @@
 {
   "name": "mfcoin-wallet",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "private": true,
   "type": "module",
   "description": "A minimal, security-first browser wallet for MFCoin.",
   "scripts": {
     "build": "node scripts/build.mjs",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "node scripts/test.mjs"
   },
   "dependencies": {
     "@polkadot/api": "16.4.4",

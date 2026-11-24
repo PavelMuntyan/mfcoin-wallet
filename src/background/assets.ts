@@ -10,6 +10,10 @@ import type { AssetBalances, AssetHistoryEntry, AssetHistoryPage, AssetOperation
 import { getAccountById } from './accounts';
 import { getApi, getBalance } from './chain';
 import { readSecret } from './vault';
+import { acquireAccountLock, hasPendingTransaction, isAccountActive } from './transaction-lock';
+import { validateAssetBalances, validateAssetHistoryPage } from './explorer-validation';
+import { reconciliationExpired, reconciliationScanUntil } from './reconcile';
+import { normalizeAssetHistory } from './asset-history';
 
 const EXPLORER_URL = process.env.MFCOIN_EXPLORER_URL || 'https://mf.life/api/explorer';
 const HISTORY_KEY = 'mfcoin.assets.history.v1';
@@ -17,7 +21,6 @@ const MORTALITY_BLOCKS = 64;
 const FINALITY_TIMEOUT_MS = Number(process.env.MFCOIN_FINALITY_TIMEOUT_MS || 90_000);
 const MAX_U128 = (1n << 128n) - 1n;
 let reconciling = false;
-const activeAccounts = new Set<string>();
 
 function storageGet<T>(key: string): Promise<T | undefined> {
   return new Promise((resolve, reject) => {
@@ -38,7 +41,8 @@ function storageSet(values: Record<string, unknown>): Promise<void> {
 }
 
 async function readHistory(): Promise<AssetHistoryEntry[]> {
-  return (await storageGet<AssetHistoryEntry[]>(HISTORY_KEY)) || [];
+  const history = (await storageGet<AssetHistoryEntry[]>(HISTORY_KEY)) || [];
+  return normalizeAssetHistory(history);
 }
 
 async function upsertHistory(entry: AssetHistoryEntry): Promise<void> {
@@ -272,54 +276,104 @@ async function submitMetadata(api: ApiPromise, entry: AssetHistoryEntry): Promis
   }, fee, BigInt(entry.fee));
 }
 
-export async function submitAssetOperation(accountId: string, input: AssetOperationInput, maxFee: string): Promise<AssetResult> {
+async function submitAssetOperationUnlocked(accountId: string, input: AssetOperationInput, maxFee: string): Promise<AssetResult> {
   if (!/^\d+$/.test(maxFee)) throw new Error('A valid maximum fee is required');
-  if (activeAccounts.has(accountId) || (await readHistory()).some((entry) => (entry.walletId === accountId || entry.accountId === accountId) && entry.status === 'pending')) {
-    throw new Error('An asset transaction is already pending for this account');
+  const { account, pair } = await signingPair(accountId);
+  const preview = await previewAssetOperation(account.accountId, input);
+  if (BigInt(preview.fee) > BigInt(maxFee)) throw new Error('Fee increased after preview; review the new fee before signing');
+  const api = await getApi();
+  const id = `local-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  const base: AssetHistoryEntry = {
+    id,
+    walletId: account.id,
+    accountId: account.accountId,
+    operation: preview.operation,
+    stage: preview.operation === 'create' ? 'create' : 'operation',
+    assetId: preview.assetId,
+    recipient: preview.recipient,
+    amount: preview.amount,
+    name: preview.name,
+    symbol: preview.symbol,
+    decimals: preview.decimals,
+    fee: preview.fee,
+    maxFee,
+    hash: '',
+    blockHash: null,
+    status: 'pending',
+    timestamp: Date.now()
+  };
+  if (preview.operation === 'create') {
+    const create = (api.tx.assets as any).create!(preview.assetId, account.accountId, 1);
+    const createFee = await paymentFee(create, account.accountId);
+    const createOutcome = await signStage(api, pair, create, base, createFee);
+    const current = (await readHistory()).find((entry) => entry.id === id)!;
+    if (createOutcome.status !== 'finalized') return { operation: 'create', assetId: preview.assetId, hash: current.hash, blockHash: createOutcome.blockHash, status: createOutcome.status, fee: createOutcome.fee, stage: 'create' };
+    return { operation: 'create', assetId: preview.assetId, hash: current.hash, blockHash: createOutcome.blockHash, status: 'metadataRequired', fee: createOutcome.fee, stage: 'create' };
   }
-  activeAccounts.add(accountId);
+  const extrinsic = preview.operation === 'mint'
+    ? (api.tx.assets as any).mint!(preview.assetId, account.accountId, BigInt(preview.amount))
+    : (api.tx.assets as any).transfer!(preview.assetId, preview.recipient!, BigInt(preview.amount));
+  const outcome = await signStage(api, pair, extrinsic, base, BigInt(preview.fee));
+  return { operation: preview.operation, assetId: preview.assetId, hash: (await readHistory()).find((entry) => entry.id === id)!.hash, blockHash: outcome.blockHash, status: outcome.status, fee: outcome.fee, stage: 'operation' };
+}
+
+export async function submitAssetOperation(accountId: string, input: AssetOperationInput, maxFee: string): Promise<AssetResult> {
+  const release = acquireAccountLock(accountId);
   try {
-    const { account, pair } = await signingPair(accountId);
-    const preview = await previewAssetOperation(account.accountId, input);
-    if (BigInt(preview.fee) > BigInt(maxFee)) throw new Error('Fee increased after preview; review the new fee before signing');
-    const api = await getApi();
-    const id = `local-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-    const base: AssetHistoryEntry = {
-      id,
-      walletId: account.id,
-      accountId: account.accountId,
-      operation: preview.operation,
-      stage: preview.operation === 'create' ? 'create' : 'operation',
-      assetId: preview.assetId,
-      recipient: preview.recipient,
-      amount: preview.amount,
-      name: preview.name,
-      symbol: preview.symbol,
-      decimals: preview.decimals,
-      fee: preview.fee,
-      maxFee,
-      hash: '',
-      blockHash: null,
-      status: 'pending',
-      timestamp: Date.now()
-    };
-    if (preview.operation === 'create') {
-      const create = (api.tx.assets as any).create!(preview.assetId, account.accountId, 1);
-      const createFee = await paymentFee(create, account.accountId);
-      const createOutcome = await signStage(api, pair, create, base, createFee);
-      const current = (await readHistory()).find((entry) => entry.id === id)!;
-      if (createOutcome.status !== 'finalized') return { operation: 'create', assetId: preview.assetId, hash: current.hash, blockHash: createOutcome.blockHash, status: createOutcome.status, fee: createOutcome.fee, stage: 'create' };
-      const metadataOutcome = await submitMetadata(api, { ...current, fee: createOutcome.fee, status: 'pending' });
-      const final = (await readHistory()).find((entry) => entry.id === id)!;
-      return { operation: 'create', assetId: preview.assetId, hash: final.hash, blockHash: metadataOutcome.blockHash, status: metadataOutcome.status, fee: metadataOutcome.fee, stage: 'metadata' };
-    }
-    const extrinsic = preview.operation === 'mint'
-      ? (api.tx.assets as any).mint!(preview.assetId, account.accountId, BigInt(preview.amount))
-      : (api.tx.assets as any).transfer!(preview.assetId, preview.recipient!, BigInt(preview.amount));
-    const outcome = await signStage(api, pair, extrinsic, base, BigInt(preview.fee));
-    return { operation: preview.operation, assetId: preview.assetId, hash: (await readHistory()).find((entry) => entry.id === id)!.hash, blockHash: outcome.blockHash, status: outcome.status, fee: outcome.fee, stage: 'operation' };
+    const account = await getAccountById(accountId);
+    if (!account) throw new Error('Account not found');
+    if (await hasPendingTransaction(accountId, account.accountId)) throw new Error('An asset transaction is already pending for this account');
+    return await submitAssetOperationUnlocked(accountId, input, maxFee);
   } finally {
-    activeAccounts.delete(accountId);
+    release();
+  }
+}
+
+async function metadataEntry(accountId: string, historyId: string): Promise<AssetHistoryEntry> {
+  const entry = (await readHistory()).find((candidate) => candidate.id === historyId && candidate.walletId === accountId);
+  if (!entry || entry.status !== 'metadataRequired') throw new Error('Asset metadata is not awaiting confirmation');
+  return entry;
+}
+
+export async function previewPendingMetadata(accountId: string, historyId: string): Promise<AssetPreview> {
+  const entry = await metadataEntry(accountId, historyId);
+  const account = await getAccountById(accountId);
+  if (!account) throw new Error('Account not found');
+  const api = await getApi();
+  const name = metadataText(entry.name, 'Asset name', 64);
+  const symbol = metadataText(entry.symbol, 'Asset symbol', 16);
+  const decimals = entry.decimals!;
+  const extrinsic = (api.tx.assets as any).setMetadata!(entry.assetId, name, symbol, decimals);
+  const metadataFee = await paymentFee(extrinsic, account.accountId);
+  const deposit = BigInt((api.consts.assets as any)!.metadataDepositBase!.toString())
+    + BigInt((api.consts.assets as any)!.metadataDepositPerByte!.toString()) * BigInt(new TextEncoder().encode(name).length + new TextEncoder().encode(symbol).length);
+  const native = await nativePreview(account.accountId, metadataFee, deposit);
+  return {
+    operation: 'create',
+    assetId: entry.assetId,
+    amount: '0',
+    fee: (BigInt(entry.fee) + metadataFee).toString(),
+    ...native,
+    name,
+    symbol,
+    decimals
+  };
+}
+
+export async function submitPendingMetadata(accountId: string, historyId: string, maxFee: string): Promise<AssetResult> {
+  const release = acquireAccountLock(accountId);
+  try {
+    if (!/^\d+$/.test(maxFee)) throw new Error('A valid maximum fee is required');
+    const account = await getAccountById(accountId);
+    if (!account) throw new Error('Account not found');
+    if (await hasPendingTransaction(accountId, account.accountId)) throw new Error('A transaction is already pending for this account');
+    const entry = await metadataEntry(accountId, historyId);
+    const api = await getApi();
+    const outcome = await submitMetadata(api, { ...entry, maxFee });
+    const final = (await readHistory()).find((candidate) => candidate.id === historyId)!;
+    return { operation: 'create', assetId: entry.assetId, hash: final.hash, blockHash: outcome.blockHash, status: outcome.status, fee: outcome.fee, stage: 'metadata' };
+  } finally {
+    release();
   }
 }
 
@@ -328,7 +382,8 @@ async function reconcileEntry(api: ApiPromise, entry: AssetHistoryEntry): Promis
   const finalizedHeader = await api.rpc.chain.getHeader(finalizedHash);
   const finalizedNumber = finalizedHeader.number.toNumber();
   let checked = entry.lastCheckedNumber ?? 0;
-  for (let number = checked + 1; number <= finalizedNumber; number += 1) {
+  const scanUntil = reconciliationScanUntil(finalizedNumber, entry.expiresAfter);
+  for (let number = checked + 1; number <= scanUntil; number += 1) {
     const blockHash = await api.rpc.chain.getBlockHash(number);
     const block = await api.rpc.chain.getBlock(blockHash);
     const extrinsicIndex = block.block.extrinsics.findIndex((item) => item.hash.toHex() === entry.hash);
@@ -340,21 +395,21 @@ async function reconcileEntry(api: ApiPromise, entry: AssetHistoryEntry): Promis
       const feeEvent = related.find(({ event }) => api.events.transactionPayment!.TransactionFeePaid!.is(event));
       const actualFee = feeEvent?.event.data[1]?.toString() || entry.fee;
       const combinedFee = (BigInt(entry.previousFee || '0') + BigInt(actualFee)).toString();
-      const status: TransferStatus = failed ? 'failed' : 'finalized';
+      const status: AssetHistoryEntry['status'] = failed ? 'failed' : entry.operation === 'create' && entry.stage === 'create' ? 'metadataRequired' : 'finalized';
       const updated = { ...entry, blockHash: blockHash.toHex(), blockNumber: number, status, fee: combinedFee, error: failed ? dispatchErrorText(api, failed.event.data[0] as never) : undefined, lastCheckedNumber: number };
       await upsertHistory(updated);
-      if (status === 'finalized' && entry.operation === 'create' && entry.stage === 'create') await submitMetadata(api, updated);
       return;
     }
     checked = number;
+    if (checked % 8 === 0) await upsertHistory({ ...entry, lastCheckedNumber: checked });
   }
-  const status: TransferStatus = entry.expiresAfter !== undefined && finalizedNumber > entry.expiresAfter ? 'dropped' : 'pending';
+  const status: TransferStatus = reconciliationExpired(finalizedNumber, entry.expiresAfter) ? 'dropped' : 'pending';
   await upsertHistory({ ...entry, status, lastCheckedNumber: checked });
 }
 
 async function reconcilePending(): Promise<void> {
   if (reconciling) return;
-  const pending = (await readHistory()).filter((entry) => entry.status === 'pending' && !activeAccounts.has(entry.walletId || entry.accountId));
+  const pending = (await readHistory()).filter((entry) => entry.status === 'pending' && !isAccountActive(entry.walletId || entry.accountId));
   if (!pending.length) return;
   reconciling = true;
   try {
@@ -382,9 +437,8 @@ async function explorerRequest(path: string): Promise<any> {
 
 export async function getAssets(accountId: string): Promise<AssetBalances> {
   const address = encodeAddress('tmfcx', accountId);
-  const result = await explorerRequest(`/accounts/${address}/assets`);
-  if (!Array.isArray(result.assets)) throw new Error('Invalid Explorer asset response');
-  return { assets: result.assets as CommunityAsset[], supported: Boolean(result.supported), truncated: Boolean(result.truncated) };
+  const result = validateAssetBalances(await explorerRequest(`/accounts/${address}/assets`));
+  return { assets: result.assets as CommunityAsset[], supported: result.supported, truncated: result.truncated };
 }
 
 function mapExplorerEvent(event: any, accountId: string): AssetHistoryEntry {
@@ -418,10 +472,9 @@ export async function getAssetHistory(accountId: string, direction?: HistoryDire
   if (direction && cursor) params.set(direction, cursor);
   try {
     const address = encodeAddress('tmfcx', accountId);
-    const page = await explorerRequest(`/accounts/${address}/asset-activity?${params}`);
-    if (!Array.isArray(page.assetEvents)) throw new Error('Invalid Explorer asset history response');
+    const page = validateAssetHistoryPage(await explorerRequest(`/accounts/${address}/asset-activity?${params}`));
     const events = (page.assetEvents as any[]).map((event: any) => mapExplorerEvent(event, accountId));
-    const localOnly = local.filter((entry) => entry.status === 'pending' || !events.some((event) => event.hash === entry.hash || event.hash === entry.createHash));
+    const localOnly = local.filter((entry) => entry.status === 'pending' || entry.status === 'metadataRequired' || !events.some((event) => event.hash === entry.hash || event.hash === entry.createHash));
     return {
       assetEvents: direction ? events : [...events, ...localOnly].sort((a, b) => b.timestamp - a.timestamp),
       nextCursor: page.nextCursor,

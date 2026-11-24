@@ -12,6 +12,7 @@ export interface TransferPreview {
 }
 
 export type TransferStatus = 'pending' | 'finalized' | 'failed' | 'dropped';
+export type AssetTransferStatus = TransferStatus | 'metadataRequired';
 
 export interface TransferResult extends TransferPreview {
   hash: string;
@@ -97,7 +98,7 @@ export interface AssetResult {
   assetId: number;
   hash: string;
   blockHash: string | null;
-  status: TransferStatus;
+  status: AssetTransferStatus;
   fee: string;
   stage: 'create' | 'metadata' | 'operation';
 }
@@ -122,7 +123,7 @@ export interface AssetHistoryEntry {
   createHash?: string;
   blockHash: string | null;
   blockNumber?: number;
-  status: TransferStatus;
+  status: AssetTransferStatus;
   timestamp: number;
   error?: string;
   expiresAfter?: number;
@@ -146,6 +147,8 @@ export type ChainRequest =
   | { type: 'chain.assets'; request: { accountId: string } }
   | { type: 'chain.assetPreview'; request: { sender: string; input: AssetOperationInput } }
   | { type: 'chain.assetSubmit'; request: { accountId: string; input: AssetOperationInput; maxFee: string } }
+  | { type: 'chain.assetMetadataPreview'; request: { accountId: string; historyId: string } }
+  | { type: 'chain.assetMetadataSubmit'; request: { accountId: string; historyId: string; maxFee: string } }
   | { type: 'chain.assetHistory'; request: { accountId: string; direction?: HistoryDirection; cursor?: string } };
 
 export type ChainResponse<T> = { ok: true; data: T } | { ok: false; error: string };
