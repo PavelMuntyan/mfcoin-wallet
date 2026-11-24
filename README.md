@@ -21,6 +21,7 @@ A lightweight, English-only, non-custodial browser wallet for the MFCoin communi
 - Runtime gas preview with full recipient/network confirmation and a user-approved maximum fee.
 - Mortal transfers with a 64-block lifetime, `pending`, `finalized`, `failed` and `dropped` states.
 - Pending history is stored before broadcast and reconciled after timeout or service-worker restart. A second transfer from the same account is blocked while it is pending.
+- Explorer-backed incoming and outgoing history with rewards, fees, 30-event pages and links to finalized blocks and transactions. Local pending entries are merged without duplication; Explorer outages fall back to a clearly marked local-only view.
 - Settings with password-gated seed/private-key export, timed reveal, clipboard copy and account deletion.
 - MF Life visual language, dark theme by default and a light-theme toggle.
 
@@ -29,7 +30,6 @@ A lightweight, English-only, non-custodial browser wallet for the MFCoin communi
 - dApp connections and external signing.
 - EVM, TON, Cardano, Bitcoin and unrelated chains.
 - Token balances/history until a supported token pallet and indexer integration exist.
-- Complete incoming history from an indexer. Current history covers transactions initiated by this device.
 - Swaps until a reviewed protocol or pallet exists.
 - Hardware wallets, proxies and advanced multisig workflows.
 
@@ -49,7 +49,7 @@ NODE_ENV=production npm run build
 
 The extension is generated in `build/`. Load that directory through `chrome://extensions` in developer mode. The default production manifest contains only `wss://mf.life/ws` connectivity and no localhost permissions.
 
-For a local devnet, set `MFCOIN_RPC_URL`, `MFCOIN_GENESIS_HASH` and optionally `MFCOIN_FINALITY_TIMEOUT_MS` or `MFCOIN_LOCK_TIMEOUT_MS` before building. Localhost permissions are added only when the configured RPC URL is local.
+For a local devnet, set `MFCOIN_RPC_URL`, `MFCOIN_GENESIS_HASH` and optionally `MFCOIN_FINALITY_TIMEOUT_MS`, `MFCOIN_LOCK_TIMEOUT_MS` or `MFCOIN_EXPLORER_URL` before building. Localhost permissions are added only when the configured RPC URL is local.
 
 ## Verification
 

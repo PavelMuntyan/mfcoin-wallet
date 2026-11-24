@@ -4,12 +4,13 @@ import { u8aToHex } from '@polkadot/util';
 import type { Vec } from '@polkadot/types-codec';
 import type { AccountInfo, EventRecord, RuntimeDispatchInfo } from '@polkadot/types/interfaces';
 import { waitReady } from '@polkadot/wasm-crypto';
-import { decodeAddress } from '../lib/mfc-address.js';
-import type { BalanceView, HistoryEntry, TransferPreview, TransferResult, TransferStatus } from '../shared/chain';
+import { decodeAddress, encodeAddress } from '../lib/mfc-address.js';
+import type { BalanceView, HistoryDirection, HistoryEntry, HistoryPage, TransferPreview, TransferResult, TransferStatus } from '../shared/chain';
 import { getAccountById } from './accounts';
 import { readSecret } from './vault';
 
 const RPC_URL = process.env.MFCOIN_RPC_URL || 'wss://mf.life/ws';
+const EXPLORER_URL = process.env.MFCOIN_EXPLORER_URL || 'https://mf.life/api/explorer';
 const GENESIS_HASH = process.env.MFCOIN_GENESIS_HASH || '0x085a6799f4e791867e6dbd152e47eda04df2cb05add46f278ec4553f3e5b8a52';
 const FINALITY_TIMEOUT_MS = Number(process.env.MFCOIN_FINALITY_TIMEOUT_MS || 90_000);
 const UNIT = 1_000_000_000_000n;
@@ -300,12 +301,79 @@ export async function transfer(accountId: string, recipient: string, amount: str
   };
 }
 
-export async function getHistory(accountId: string): Promise<HistoryEntry[]> {
+interface ExplorerMovement {
+  id: string;
+  blockNumber: number;
+  blockHash: string;
+  extrinsicHash: string | null;
+  kind: string;
+  fromAccount: string | null;
+  toAccount: string | null;
+  amount: string;
+  fee: string | null;
+  timestamp: string;
+}
+
+interface ExplorerHistoryPage {
+  balanceEvents: ExplorerMovement[];
+  nextCursor: string | null;
+  previousCursor: string | null;
+  hasOlder: boolean;
+  hasNewer: boolean;
+}
+
+function mapExplorerMovement(movement: ExplorerMovement): HistoryEntry {
+  return {
+    id: movement.id,
+    sender: movement.fromAccount,
+    recipient: movement.toAccount,
+    amount: movement.amount,
+    fee: movement.fee || '0',
+    hash: movement.extrinsicHash || '',
+    blockHash: movement.blockHash,
+    blockNumber: movement.blockNumber,
+    kind: movement.kind,
+    status: 'finalized',
+    timestamp: Date.parse(movement.timestamp)
+  };
+}
+
+export async function getHistory(accountId: string, direction?: HistoryDirection, cursor?: string): Promise<HistoryPage> {
   void reconcilePending();
-  const history = await readHistory();
-  return history
-    .filter((entry) => entry.sender === accountId || entry.recipient === accountId)
-    .sort((a, b) => b.timestamp - a.timestamp);
+  const localHistory = (await readHistory()).filter((entry) => entry.sender === accountId || entry.recipient === accountId);
+  const params = new URLSearchParams({ limit: '30' });
+  if (direction && cursor) params.set(direction, cursor);
+  const address = encodeAddress('tmfcx', accountId);
+
+  try {
+    const response = await fetch(`${EXPLORER_URL}/accounts/${address}/activity?${params}`, {
+      headers: { Accept: 'application/json' },
+      signal: (AbortSignal as unknown as { timeout(milliseconds: number): AbortSignal }).timeout(10_000)
+    });
+    if (!response.ok) throw new Error('Explorer history is unavailable');
+    const page = await response.json() as ExplorerHistoryPage;
+    if (!Array.isArray(page.balanceEvents)) throw new Error('Invalid Explorer history response');
+    const events = page.balanceEvents.map(mapExplorerMovement);
+    const localOnly = localHistory.filter((local) => !local.hash || !events.some((event) => event.hash === local.hash));
+    const balanceEvents = direction ? events : [...events, ...localOnly].sort((a, b) => b.timestamp - a.timestamp);
+    return {
+      balanceEvents,
+      nextCursor: page.nextCursor,
+      previousCursor: page.previousCursor,
+      hasOlder: page.hasOlder,
+      hasNewer: page.hasNewer,
+      source: 'explorer'
+    };
+  } catch {
+    return {
+      balanceEvents: localHistory.sort((a, b) => b.timestamp - a.timestamp),
+      nextCursor: null,
+      previousCursor: null,
+      hasOlder: false,
+      hasNewer: false,
+      source: 'local'
+    };
+  }
 }
 
 export async function deleteHistoryForAccount(accountId: string): Promise<void> {

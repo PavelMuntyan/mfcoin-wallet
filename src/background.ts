@@ -77,7 +77,7 @@ async function handleChain(request: ChainRequest): Promise<ChainResponse<unknown
         data = await transfer(request.request.accountId, request.request.recipient, request.request.amount, request.request.maxFee);
         break;
       case 'chain.history':
-        data = await getHistory(request.request.accountId);
+        data = await getHistory(request.request.accountId, request.request.direction, request.request.cursor);
         break;
       default:
         throw new Error('Unsupported chain request');

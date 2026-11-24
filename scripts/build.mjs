@@ -7,7 +7,8 @@ const define = {
   'process.env.MFCOIN_RPC_URL': JSON.stringify(rpcUrl),
   'process.env.MFCOIN_GENESIS_HASH': JSON.stringify(process.env.MFCOIN_GENESIS_HASH || ''),
   'process.env.MFCOIN_FINALITY_TIMEOUT_MS': JSON.stringify(process.env.MFCOIN_FINALITY_TIMEOUT_MS || ''),
-  'process.env.MFCOIN_LOCK_TIMEOUT_MS': JSON.stringify(process.env.MFCOIN_LOCK_TIMEOUT_MS || '')
+  'process.env.MFCOIN_LOCK_TIMEOUT_MS': JSON.stringify(process.env.MFCOIN_LOCK_TIMEOUT_MS || ''),
+  'process.env.MFCOIN_EXPLORER_URL': JSON.stringify(process.env.MFCOIN_EXPLORER_URL || '')
 };
 
 rmSync('build', { force: true, recursive: true });

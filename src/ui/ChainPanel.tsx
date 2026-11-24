@@ -4,7 +4,7 @@ import { sendChainRequest } from './api';
 import { formatMfc, shortHash } from './format';
 import SettingsPanel from './SettingsPanel';
 import type { PublicAccount, WalletState } from '../shared/accounts';
-import type { BalanceView, HistoryEntry, TransferPreview, TransferResult } from '../shared/chain';
+import type { BalanceView, HistoryDirection, HistoryEntry, HistoryPage, TransferPreview, TransferResult } from '../shared/chain';
 
 interface Props {
   account: PublicAccount;
@@ -12,10 +12,26 @@ interface Props {
   onDeleted: (state: WalletState) => void;
 }
 
+function historyTitle(entry: HistoryEntry, accountId: string): string {
+  if (entry.kind === 'deposit') return 'Reward';
+  if (entry.kind === 'withdraw') return 'Fee / withdrawal';
+  if (entry.kind === 'reserved') return 'Reserved';
+  if (entry.kind === 'unreserved') return 'Unreserved';
+  if (entry.kind === 'dustLost') return 'Dust lost';
+  if (entry.kind === 'slashed') return 'Slashed';
+  return entry.sender === accountId ? 'Sent' : 'Received';
+}
+
+function historyHref(entry: HistoryEntry): string {
+  if (entry.hash) return `https://mf.life/explorer/#/tx/${entry.hash}`;
+  if (entry.blockNumber !== undefined) return `https://mf.life/explorer/#/block/${entry.blockNumber}`;
+  return 'https://mf.life/explorer/';
+}
+
 export default function ChainPanel({ account, onChange, onDeleted }: Props) {
   const [qr, setQr] = useState('');
   const [balance, setBalance] = useState('');
-  const [history, setHistory] = useState<HistoryEntry[]>([]);
+  const [historyPage, setHistoryPage] = useState<HistoryPage>();
   const [recipient, setRecipient] = useState('');
   const [amount, setAmount] = useState('');
   const [preview, setPreview] = useState<TransferPreview>();
@@ -24,6 +40,7 @@ export default function ChainPanel({ account, onChange, onDeleted }: Props) {
   const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
+  const history = historyPage?.balanceEvents || [];
   const hasPending = history.some((entry) => entry.sender === account.accountId && entry.status === 'pending');
 
   useEffect(() => {
@@ -33,7 +50,7 @@ export default function ChainPanel({ account, onChange, onDeleted }: Props) {
     setError('');
     setNotice('');
     setBalance('');
-    setHistory([]);
+    setHistoryPage(undefined);
     toDataURL(account.address, { errorCorrectionLevel: 'M', margin: 2, width: 220, color: { dark: '#0b0d0a', light: '#d9ff63' } })
       .then((value) => !cancelled && setQr(value))
       .catch(() => !cancelled && setQr(''));
@@ -60,12 +77,13 @@ export default function ChainPanel({ account, onChange, onDeleted }: Props) {
     }
   }
 
-  async function loadHistory() {
+  async function loadHistory(direction?: HistoryDirection) {
     try {
-      const response = await sendChainRequest<HistoryEntry[]>({ type: 'chain.history', request: { accountId: account.accountId } });
-      setHistory(response.data);
+      const cursor = direction === 'before' ? historyPage?.nextCursor : historyPage?.previousCursor;
+      const response = await sendChainRequest<HistoryPage>({ type: 'chain.history', request: { accountId: account.accountId, direction, cursor: cursor || undefined } });
+      setHistoryPage(response.data);
     } catch {
-      setHistory([]);
+      setHistoryPage({ balanceEvents: [], nextCursor: null, previousCursor: null, hasOlder: false, hasNewer: false, source: 'local' });
     }
   }
 
@@ -166,20 +184,25 @@ export default function ChainPanel({ account, onChange, onDeleted }: Props) {
       {account.network === 'testnet' && (
         <details className="history-panel">
           <summary>History</summary>
+          {historyPage?.source === 'local' && <p className="watch-note">Explorer is unavailable. Showing local history only.</p>}
           {history.length ? (
             <div className="history-list">
               {history.map((entry) => (
-                <article key={entry.hash}>
-                  <div><strong>{entry.sender === account.accountId ? 'Sent' : 'Received'} {formatMfc(entry.amount)}</strong><span>{entry.status}</span></div>
-                  <p>Fee {formatMfc(entry.fee)}</p>
+                <a className="history-entry" key={entry.id || entry.hash} href={historyHref(entry)} target="_blank" rel="noreferrer">
+                  <div><strong>{historyTitle(entry, account.accountId)} {formatMfc(entry.amount)}</strong><span>{entry.status}</span></div>
+                  {entry.kind && entry.kind !== 'transfer' ? <p>{entry.kind}</p> : <p>Fee {formatMfc(entry.fee)}</p>}
                   {entry.error && <p>{entry.error}</p>}
-                  <code>{shortHash(entry.hash)}</code>
-                </article>
+                  <code>{entry.hash ? shortHash(entry.hash) : `Block #${entry.blockNumber}`}</code>
+                </a>
               ))}
             </div>
           ) : (
             <p className="watch-note">No transactions from this device yet.</p>
           )}
+          <nav className="pagination-controls" aria-label="Account history pages">
+            <button className="load-more" type="button" hidden={!historyPage?.hasNewer} onClick={() => loadHistory('after')}>← Newer 30</button>
+            <button className="load-more" type="button" hidden={!historyPage?.hasOlder} onClick={() => loadHistory('before')}>Older 30 →</button>
+          </nav>
         </details>
       )}
 
