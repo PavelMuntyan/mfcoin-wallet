@@ -44,7 +44,8 @@ async function readHistory(): Promise<AssetHistoryEntry[]> {
 async function upsertHistory(entry: AssetHistoryEntry): Promise<void> {
   const history = await readHistory();
   const index = history.findIndex((candidate) => candidate.id === entry.id);
-  if (index >= 0 && history[index]!.status !== 'pending' && entry.status === 'pending') return;
+  if (index >= 0 && history[index]!.status !== 'pending' && entry.status === 'pending'
+    && history[index]!.stage === entry.stage && history[index]!.hash === entry.hash) return;
   if (index >= 0) history[index] = entry;
   else history.unshift(entry);
   history.sort((a, b) => b.timestamp - a.timestamp);
