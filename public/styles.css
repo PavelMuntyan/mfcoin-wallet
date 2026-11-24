@@ -117,8 +117,6 @@ button:disabled { cursor: not-allowed; opacity: .5; }
 .account-selected { flex: 0 0 16px; color: var(--accent); font-weight: 800; text-align: center; }
 .import-forms { display: grid; gap: 24px; }
 .import-forms .form-stack + .form-stack { padding-top: 24px; border-top: 1px solid var(--line); }
-.network-select { padding-right: 42px; appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 20 20'%3E%3Cpath d='m5 7.5 5 5 5-5' fill='none' stroke='%23a0a699' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 13px center; }
-.network-select option { color: var(--text); background: var(--panel); }
 .backup-card { margin-top: 24px; padding: 20px; border: 1px solid var(--accent); border-radius: 18px; background: var(--panel); }
 .backup-card h2 { margin: 0 0 12px; }
 .backup-card p:not(.eyebrow) { color: var(--muted); font-size: 13px; line-height: 1.55; }

@@ -270,7 +270,13 @@ export default function AccountDashboard({ state, onChange, onLock }: Props) {
               <h2>Add watch-only account</h2>
               <p>Track a public address. Watch-only accounts can never sign transactions.</p>
               <label>Account name<input value={name} onChange={(event) => setName(event.target.value)} maxLength={32} required /></label>
-              <label>Network<select className="network-select" value={watchNetwork} onChange={(event) => setWatchNetwork(event.target.value as 'testnet' | 'mainnet')}><option value="testnet">Testnet 112</option><option value="mainnet">Mainnet · not live</option></select></label>
+              <div className="export-format" role="group" aria-label="Network">
+                <span className="field-label">Network</span>
+                <div className="export-format-buttons">
+                  <button type="button" aria-pressed={watchNetwork === 'testnet'} onClick={() => setWatchNetwork('testnet')}>Testnet 112</button>
+                  <button type="button" aria-pressed={watchNetwork === 'mainnet'} onClick={() => setWatchNetwork('mainnet')}>Mainnet · not live</button>
+                </div>
+              </div>
               <label>Public address<input value={watchAddress} onChange={(event) => setWatchAddress(event.target.value)} placeholder={watchNetwork === 'mainnet' ? 'mfcx1…' : 'tmfcx1…'} autoComplete="off" required /></label>
               <button className="primary-button" type="submit" disabled={busy}>Add watch-only</button>
             </form>
