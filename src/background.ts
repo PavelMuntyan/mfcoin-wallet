@@ -1,7 +1,7 @@
 import type { AccountRequest, AccountResponse, WalletState } from './shared/accounts';
 import type { ChainRequest, ChainResponse } from './shared/chain';
-import { addWatchOnly, createAccount, getState, importPrivateKey, importSeed, selectAccount } from './background/accounts';
-import { getBalance, getHistory, previewTransfer, transfer } from './background/chain';
+import { addWatchOnly, confirmBackup, createAccount, exportSecret, getAccountById, getState, importPrivateKey, importSeed, removeAccount, selectAccount } from './background/accounts';
+import { deleteHistoryForAccount, getBalance, getHistory, previewTransfer, transfer } from './background/chain';
 import { createVault, lockVault, unlockVault } from './background/vault';
 
 async function handle(request: AccountRequest): Promise<AccountResponse> {
@@ -25,8 +25,11 @@ async function handle(request: AccountRequest): Promise<AccountResponse> {
         break;
       case 'accounts.create': {
         const created = await createAccount(request.request.name);
-        return { ok: true, state: created.state, backup: { mnemonic: created.mnemonic } };
+        return { ok: true, state: created.state, backup: created.backup };
       }
+      case 'accounts.confirmBackup':
+        state = await confirmBackup(request.request.creationId, request.request.words);
+        break;
       case 'accounts.importSeed':
         state = await importSeed(request.request.name, request.request.mnemonic);
         break;
@@ -39,6 +42,18 @@ async function handle(request: AccountRequest): Promise<AccountResponse> {
       case 'accounts.select':
         state = await selectAccount(request.request.id);
         break;
+      case 'accounts.exportSecret': {
+        const secret = await exportSecret(request.request.id, request.request.password, request.request.format);
+        state = await getState();
+        return { ok: true, state, secret };
+      }
+      case 'accounts.remove': {
+        const account = await getAccountById(request.request.id);
+        if (!account) throw new Error('Account not found');
+        state = await removeAccount(request.request.id, request.request.password);
+        await deleteHistoryForAccount(account.accountId);
+        break;
+      }
       default:
         throw new Error('Unsupported wallet request');
     }
@@ -59,7 +74,7 @@ async function handleChain(request: ChainRequest): Promise<ChainResponse<unknown
         data = await previewTransfer(request.request.sender, request.request.recipient, request.request.amount);
         break;
       case 'chain.transfer':
-        data = await transfer(request.request.accountId, request.request.recipient, request.request.amount);
+        data = await transfer(request.request.accountId, request.request.recipient, request.request.amount, request.request.maxFee);
         break;
       case 'chain.history':
         data = await getHistory(request.request.accountId);

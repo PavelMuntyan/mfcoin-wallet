@@ -2,14 +2,17 @@ import { FormEvent, useEffect, useState } from 'react';
 import { toDataURL } from 'qrcode';
 import { sendChainRequest } from './api';
 import { formatMfc, shortHash } from './format';
-import type { PublicAccount } from '../shared/accounts';
+import SettingsPanel from './SettingsPanel';
+import type { PublicAccount, WalletState } from '../shared/accounts';
 import type { BalanceView, HistoryEntry, TransferPreview, TransferResult } from '../shared/chain';
 
 interface Props {
   account: PublicAccount;
+  onChange: (state: WalletState) => void;
+  onDeleted: (state: WalletState) => void;
 }
 
-export default function ChainPanel({ account }: Props) {
+export default function ChainPanel({ account, onChange, onDeleted }: Props) {
   const [qr, setQr] = useState('');
   const [balance, setBalance] = useState('');
   const [history, setHistory] = useState<HistoryEntry[]>([]);
@@ -21,6 +24,7 @@ export default function ChainPanel({ account }: Props) {
   const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
+  const hasPending = history.some((entry) => entry.sender === account.accountId && entry.status === 'pending');
 
   useEffect(() => {
     let cancelled = false;
@@ -40,6 +44,12 @@ export default function ChainPanel({ account }: Props) {
     }
     return () => { cancelled = true; };
   }, [account.id]);
+
+  useEffect(() => {
+    if (!hasPending) return;
+    const timer = setInterval(() => void loadHistory(), 15_000);
+    return () => clearInterval(timer);
+  }, [hasPending, account.id]);
 
   async function loadBalance() {
     try {
@@ -83,17 +93,20 @@ export default function ChainPanel({ account }: Props) {
   }
 
   async function confirmTransfer() {
-    if (!preview) return;
+    if (!preview || hasPending) return;
     setBusy(true);
     setError('');
     setNotice('');
     try {
-      const response = await sendChainRequest<TransferResult>({ type: 'chain.transfer', request: { accountId: account.id, recipient: recipient.trim(), amount } });
+      const response = await sendChainRequest<TransferResult>({ type: 'chain.transfer', request: { accountId: account.id, recipient: recipient.trim(), amount, maxFee: preview.fee } });
       setResult(response.data);
       setPreview(undefined);
       setRecipient('');
       setAmount('');
-      setNotice('Transaction finalized');
+      if (response.data.status === 'finalized') setNotice('Transaction finalized');
+      else if (response.data.status === 'pending') setNotice('Transaction submitted. Waiting for finalization; do not submit it again.');
+      else if (response.data.status === 'dropped') setError('Transaction expired or was dropped. Review it before trying again.');
+      else setError('Transaction was included but failed. Review the history before trying again.');
       await Promise.all([loadBalance(), loadHistory()]);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Transfer failed');
@@ -105,12 +118,13 @@ export default function ChainPanel({ account }: Props) {
   return (
     <section className="chain-panel">
       <details className="receive-panel">
-          <summary>Receive MFC</summary>
-          <div className="receive-content">
-            {qr && <img className="receive-qr" src={qr} alt={`QR code for ${account.address}`} />}
-            <code className="full-address">{account.address}</code>
-            <button className="secondary-button" type="button" onClick={copyAddress}>{copied ? 'Copied' : 'Copy address'}</button>
-          </div>
+        <summary>Receive MFC</summary>
+        <div className="receive-content">
+          {account.network === 'mainnet' && <p className="watch-note">Mainnet · not live</p>}
+          {qr && <img className="receive-qr" src={qr} alt={`QR code for ${account.address}`} />}
+          <code className="full-address">{account.address}</code>
+          <button className="secondary-button" type="button" onClick={copyAddress}>{copied ? 'Copied' : 'Copy address'}</button>
+        </div>
       </details>
 
       {account.network === 'testnet' && (
@@ -124,21 +138,23 @@ export default function ChainPanel({ account }: Props) {
       {account.kind !== 'watchOnly' && account.network === 'testnet' ? (
         <details className="send-panel">
           <summary>Send MFC</summary>
+          {hasPending && <p className="watch-note">A transaction is pending. Wait for a final status before sending another one.</p>}
           <form className="form-stack" onSubmit={previewTransfer}>
             <label>Recipient address<input value={recipient} onChange={(event) => { setRecipient(event.target.value); setPreview(undefined); }} placeholder="tmfcx1…" autoComplete="off" required /></label>
             <label>Amount<input value={amount} onChange={(event) => { setAmount(event.target.value); setPreview(undefined); }} placeholder="0.001" inputMode="decimal" required /></label>
-            <button className="primary-button" type="submit" disabled={busy}>Calculate gas</button>
+            <button className="primary-button" type="submit" disabled={busy || hasPending}>Calculate gas</button>
           </form>
           {preview && (
             <div className="preview-card">
+              <div className="confirmation-address"><span>Recipient · Testnet 112</span><code>{recipient.trim()}</code></div>
               <p>Amount <strong>{formatMfc(preview.amount)}</strong></p>
-              <p>Gas fee <strong>{formatMfc(preview.fee)}</strong></p>
+              <p>Maximum gas fee <strong>{formatMfc(preview.fee)}</strong></p>
               <p>Total <strong>{formatMfc(preview.total)}</strong></p>
               <p>Remaining <strong>{formatMfc(preview.remaining)}</strong></p>
-              <button className="primary-button" type="button" disabled={busy} onClick={confirmTransfer}>Sign and send</button>
+              <button className="primary-button" type="button" disabled={busy || hasPending} onClick={confirmTransfer}>Sign and send</button>
             </div>
           )}
-          {result && <p className="form-notice">Finalized transaction: <code>{shortHash(result.hash)}</code></p>}
+          {result && <p className="form-notice">{result.status === 'finalized' ? 'Finalized' : result.status === 'pending' ? 'Pending' : 'Not finalized'} transaction: <code>{shortHash(result.hash)}</code></p>}
         </details>
       ) : (
         <p className="watch-note">{account.kind === 'watchOnly' ? 'Watch-only accounts cannot sign transactions.' : 'Mainnet transfers are not live.'}</p>
@@ -156,15 +172,18 @@ export default function ChainPanel({ account }: Props) {
                 <article key={entry.hash}>
                   <div><strong>{entry.sender === account.accountId ? 'Sent' : 'Received'} {formatMfc(entry.amount)}</strong><span>{entry.status}</span></div>
                   <p>Fee {formatMfc(entry.fee)}</p>
+                  {entry.error && <p>{entry.error}</p>}
                   <code>{shortHash(entry.hash)}</code>
                 </article>
               ))}
             </div>
           ) : (
-            <p className="watch-note">No finalized transactions from this device yet.</p>
+            <p className="watch-note">No transactions from this device yet.</p>
           )}
         </details>
       )}
+
+      <SettingsPanel account={account} onChange={onChange} onDeleted={onDeleted} />
     </section>
   );
 }

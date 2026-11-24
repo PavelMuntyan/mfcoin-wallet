@@ -1,7 +1,7 @@
 import { FormEvent, useEffect, useRef, useState } from 'react';
 import { sendWalletRequest } from './api';
 import ChainPanel from './ChainPanel';
-import type { AccountResponse, PublicAccount, WalletState } from '../shared/accounts';
+import type { AccountResponse, BackupChallenge, PublicAccount, WalletState } from '../shared/accounts';
 
 interface Props {
   state: WalletState;
@@ -39,7 +39,8 @@ export default function AccountDashboard({ state, onChange, onLock }: Props) {
   const [watchNetwork, setWatchNetwork] = useState<'testnet' | 'mainnet'>('testnet');
   const [activeTab, setActiveTab] = useState<AccountTab>('new');
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
-  const [backup, setBackup] = useState('');
+  const [backup, setBackup] = useState<BackupChallenge>();
+  const [backupWords, setBackupWords] = useState<string[]>([]);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
@@ -84,8 +85,20 @@ export default function AccountDashboard({ state, onChange, onLock }: Props) {
     event.preventDefault();
     const response = await run(() => sendWalletRequest({ type: 'accounts.create', request: { name } }));
     if (response?.backup) {
-      setBackup(response.backup.mnemonic);
-      setName(`Account ${response.state.accounts.length + 1}`);
+      setBackup(response.backup);
+      setBackupWords(response.backup.wordIndexes.map(() => ''));
+      setName(`Account ${response.state.accounts.length + 2}`);
+    }
+  }
+
+  async function confirmBackup(event: FormEvent) {
+    event.preventDefault();
+    if (!backup) return;
+    const response = await run(() => sendWalletRequest({ type: 'accounts.confirmBackup', request: { creationId: backup.creationId, words: backupWords } }));
+    if (response) {
+      setBackup(undefined);
+      setBackupWords([]);
+      setNotice('Backup verified. Account created.');
     }
   }
 
@@ -141,10 +154,19 @@ export default function AccountDashboard({ state, onChange, onLock }: Props) {
       {backup && (
         <section className="backup-card" aria-label="Seed phrase backup">
           <p className="eyebrow">SAVE THIS SEED PHRASE OFFLINE</p>
-          <h2>Your only backup.</h2>
-          <p>Write these words down and keep them private. They will not be shown again after you close this screen.</p>
-          <code className="seed-backup">{backup}</code>
-          <button className="primary-button" type="button" onClick={() => setBackup('')}>I saved it offline</button>
+          <h2>Confirm your backup.</h2>
+          <p>Write these words down. The account will not be activated until you confirm three randomly selected words.</p>
+          <code className="seed-backup">{backup.mnemonic}</code>
+          <form className="form-stack" onSubmit={confirmBackup}>
+            {backup.wordIndexes.map((wordIndex, index) => (
+              <label key={wordIndex}>Word #{wordIndex + 1}<input value={backupWords[index] || ''} onChange={(event) => {
+                const words = [...backupWords];
+                words[index] = event.target.value;
+                setBackupWords(words);
+              }} autoComplete="off" spellCheck={false} required /></label>
+            ))}
+            <button className="primary-button" type="submit" disabled={busy}>Verify backup and create account</button>
+          </form>
         </section>
       )}
 
@@ -181,7 +203,7 @@ export default function AccountDashboard({ state, onChange, onLock }: Props) {
         </article>
       )}
 
-      {current && <ChainPanel account={current} />}
+      {current && <ChainPanel account={current} onChange={onChange} onDeleted={(nextState) => { onChange(nextState); setNotice('Account deleted from this device'); }} />}
 
       {error && <p className="form-error" role="alert">{error}</p>}
       {notice && <p className="form-notice" role="status">{notice}</p>}

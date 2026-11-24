@@ -1,5 +1,6 @@
 export type AccountKind = 'seed' | 'privateKey' | 'watchOnly';
 export type MfcNetwork = 'testnet' | 'mainnet';
+export type SecretFormat = 'seedPhrase' | 'privateKey';
 
 export interface PublicAccount {
   id: string;
@@ -16,6 +17,12 @@ export interface WalletState {
   unlocked: boolean;
   accounts: PublicAccount[];
   currentAccountId?: string;
+}
+
+export interface BackupChallenge {
+  creationId: string;
+  mnemonic: string;
+  wordIndexes: number[];
 }
 
 export interface CreatePasswordRequest {
@@ -49,9 +56,12 @@ export type AccountRequest =
   | { type: 'wallet.unlock'; request: UnlockRequest }
   | { type: 'wallet.lock' }
   | { type: 'accounts.create'; request: AccountNameRequest }
+  | { type: 'accounts.confirmBackup'; request: { creationId: string; words: string[] } }
   | { type: 'accounts.importSeed'; request: ImportSeedRequest }
   | { type: 'accounts.importPrivateKey'; request: ImportPrivateKeyRequest }
   | { type: 'accounts.watchOnly'; request: WatchOnlyRequest }
-  | { type: 'accounts.select'; request: { id: string } };
+  | { type: 'accounts.select'; request: { id: string } }
+  | { type: 'accounts.exportSecret'; request: { id: string; password: string; format: SecretFormat } }
+  | { type: 'accounts.remove'; request: { id: string; password: string } };
 
-export type AccountResponse = { ok: true; state: WalletState; backup?: { mnemonic: string } } | { ok: false; error: string };
+export type AccountResponse = { ok: true; state: WalletState; backup?: BackupChallenge; secret?: string } | { ok: false; error: string };

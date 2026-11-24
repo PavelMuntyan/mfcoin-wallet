@@ -1,45 +1,41 @@
 # MFCoin Wallet
 
-A minimal, English-only browser wallet for the MFCoin community. The project intentionally starts without dApp connectivity or inherited multi-chain features.
+A lightweight, English-only, non-custodial browser wallet for the MFCoin community. The trusted core intentionally excludes dApp connectivity and unrelated chains.
 
 ## Security boundaries
 
-- Only Sr25519 accounts and explicitly verified MFCoin networks.
-- No injected providers, content scripts, `tabs` permission or website signing requests.
-- Secrets are encrypted locally. No telemetry or remote account configuration.
-- Watch-only accounts cannot sign, including background calls.
-- Canonical `tmfcx` and `mfcx` validation with network mismatch protection.
-- Pinned genesis verification before any chain query or transaction.
-- Spendable balance excludes frozen funds; existential deposit and fee data come from the connected chain.
-- A transfer is recorded only after its `ExtrinsicSuccess` event is finalized. Failed dispatches are not shown as successful.
+- Only Sr25519 accounts and canonical `tmfcx`/`mfcx` addresses.
+- PBKDF2-SHA256 with 600,000 iterations and AES-GCM-256 with account-bound additional authenticated data.
+- Secrets remain encrypted in extension storage. A 15-minute inactivity timer clears the vault key from the service worker.
+- New accounts are saved only after three randomly selected backup words are confirmed.
+- Secret export and account deletion require the wallet password. Revealed secrets disappear after 10 seconds.
+- Watch-only accounts cannot sign or export a private key, including direct background calls.
+- Public-key verification before signing, pinned genesis checks on every new chain operation, and recipient-network validation.
+- No content scripts, injected providers, `tabs` permission, website signing, telemetry or remote configuration.
 
-## MVP scope
+## Implemented
 
-- Create an account and back it up with password protection.
-- Import Sr25519 seed phrases and private keys with public-key verification.
-- Add, switch and remove watch-only accounts.
-- View native MFC and supported token balances.
-- Receive with a canonical address and QR code.
-- Send with amount, existential-deposit, weight and length-fee validation plus a gas preview.
-- View token-aware transaction history, pagination, finality and reorg status.
+- Create an Sr25519 account with mandatory backup confirmation.
+- Import seed phrases and 32-byte private keys; add and switch watch-only accounts.
+- Native MFC spendable balance and canonical Receive QR codes.
+- Runtime gas preview with full recipient/network confirmation and a user-approved maximum fee.
+- Mortal transfers with a 64-block lifetime, `pending`, `finalized`, `failed` and `dropped` states.
+- Pending history is stored before broadcast and reconciled after timeout or service-worker restart. A second transfer from the same account is blocked while it is pending.
+- Settings with password-gated seed/private-key export, timed reveal, clipboard copy and account deletion.
 - MF Life visual language, dark theme by default and a light-theme toggle.
 
 ## Deliberately deferred
 
 - dApp connections and external signing.
 - EVM, TON, Cardano, Bitcoin and unrelated chains.
-- Swaps until a reviewed swap protocol or pallet exists. A swap cannot be implemented safely as a UI-only feature.
-- Hardware wallets, unified accounts, proxies and advanced multisig workflows.
+- Token balances/history until a supported token pallet and indexer integration exist.
+- Complete incoming history from an indexer. Current history covers transactions initiated by this device.
+- Swaps until a reviewed protocol or pallet exists.
+- Hardware wallets, proxies and advanced multisig workflows.
 
-Community modules can extend these areas later without enlarging the trusted core.
+## Secret-export limitation
 
-## Current status
-
-Implemented: PBKDF2/AES-GCM password vault, account creation with one-time seed backup, Sr25519 seed and private-key import, Testnet/Mainnet watch-only accounts, account switching, and lock/unlock. Secret storage was checked in Chrome to contain ciphertext only. Mainnet watch-only is display-only and marked `not live`; the public network is Testnet 112.
-
-Native MFC balances, Receive QR codes, signed Testnet transfers, runtime gas previews and finalized local history are implemented. Chrome verification covered balance queries, QR rendering, a nonzero fee preview, real signing, finalization, actual fee recording and history after reload. Watch-only signing, cross-network recipients and wrong-genesis RPC endpoints were rejected; a failed dispatch was not recorded as successful.
-
-History currently contains up to 100 successful native transfers initiated by this device. It is not a complete chain history. Indexer-backed incoming/token history and pagination remain next; token history depends on a supported token pallet.
+The extension cannot prevent screenshots, screen recordings, photographs, clipboard managers or other applications from reading an exported secret. Timed reveal reduces exposure but does not guarantee secrecy. Copy only in a private place and clear the clipboard after use.
 
 ## Development
 
@@ -51,4 +47,10 @@ npm run typecheck
 NODE_ENV=production npm run build
 ```
 
-The extension is generated in `build/`. Load that directory through `chrome://extensions` in developer mode.
+The extension is generated in `build/`. Load that directory through `chrome://extensions` in developer mode. The default production manifest contains only `wss://mf.life/ws` connectivity and no localhost permissions.
+
+For a local devnet, set `MFCOIN_RPC_URL`, `MFCOIN_GENESIS_HASH` and optionally `MFCOIN_FINALITY_TIMEOUT_MS` or `MFCOIN_LOCK_TIMEOUT_MS` before building. Localhost permissions are added only when the configured RPC URL is local.
+
+## Verification
+
+Chrome checks covered backup rejection/confirmation, password-gated export and deletion, legacy ciphertext migration, AAD-bound ciphertext rejection, real native signing, recipient confirmation, fee-cap rejection, `pending → finalized` reconciliation without duplication, automatic locking and masked Settings. TypeScript and production builds pass. `npm audit --omit=dev` reports no known vulnerabilities.

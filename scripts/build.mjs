@@ -1,15 +1,26 @@
 import { build } from 'esbuild';
-import { cpSync, mkdirSync, rmSync } from 'node:fs';
+import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 
 const production = process.env.NODE_ENV === 'production';
+const rpcUrl = process.env.MFCOIN_RPC_URL || 'wss://mf.life/ws';
 const define = {
-  'process.env.MFCOIN_RPC_URL': JSON.stringify(process.env.MFCOIN_RPC_URL || ''),
-  'process.env.MFCOIN_GENESIS_HASH': JSON.stringify(process.env.MFCOIN_GENESIS_HASH || '')
+  'process.env.MFCOIN_RPC_URL': JSON.stringify(rpcUrl),
+  'process.env.MFCOIN_GENESIS_HASH': JSON.stringify(process.env.MFCOIN_GENESIS_HASH || ''),
+  'process.env.MFCOIN_FINALITY_TIMEOUT_MS': JSON.stringify(process.env.MFCOIN_FINALITY_TIMEOUT_MS || ''),
+  'process.env.MFCOIN_LOCK_TIMEOUT_MS': JSON.stringify(process.env.MFCOIN_LOCK_TIMEOUT_MS || '')
 };
 
 rmSync('build', { force: true, recursive: true });
 mkdirSync('build', { recursive: true });
 cpSync('public', 'build', { recursive: true });
+
+if (/^(?:wss?|https?):\/\/(?:127\.0\.0\.1|localhost)(?::|\/|$)/.test(rpcUrl)) {
+  const manifestPath = 'build/manifest.json';
+  const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
+  manifest.host_permissions = ['http://127.0.0.1/*', 'ws://127.0.0.1/*'];
+  manifest.content_security_policy.extension_pages += ' ws://127.0.0.1:9944 http://127.0.0.1:9944';
+  writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+}
 
 await Promise.all([
   build({

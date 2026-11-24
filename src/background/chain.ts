@@ -1,34 +1,49 @@
 import { ApiPromise, WsProvider } from '@polkadot/api';
 import Keyring from '@polkadot/keyring';
-import type { AccountInfo, RuntimeDispatchInfo } from '@polkadot/types/interfaces';
+import { u8aToHex } from '@polkadot/util';
+import type { Vec } from '@polkadot/types-codec';
+import type { AccountInfo, EventRecord, RuntimeDispatchInfo } from '@polkadot/types/interfaces';
 import { waitReady } from '@polkadot/wasm-crypto';
 import { decodeAddress } from '../lib/mfc-address.js';
-import type { BalanceView, HistoryEntry, TransferPreview, TransferResult } from '../shared/chain';
+import type { BalanceView, HistoryEntry, TransferPreview, TransferResult, TransferStatus } from '../shared/chain';
 import { getAccountById } from './accounts';
 import { readSecret } from './vault';
 
 const RPC_URL = process.env.MFCOIN_RPC_URL || 'wss://mf.life/ws';
 const GENESIS_HASH = process.env.MFCOIN_GENESIS_HASH || '0x085a6799f4e791867e6dbd152e47eda04df2cb05add46f278ec4553f3e5b8a52';
+const FINALITY_TIMEOUT_MS = Number(process.env.MFCOIN_FINALITY_TIMEOUT_MS || 90_000);
 const UNIT = 1_000_000_000_000n;
 const HISTORY_KEY = 'mfcoin.history.v1';
+const MORTALITY_BLOCKS = 64;
 let apiPromise: Promise<ApiPromise> | undefined;
+let reconciling = false;
+
+async function assertGenesis(api: ApiPromise): Promise<void> {
+  const genesis = await api.rpc.chain.getBlockHash(0);
+  if (genesis.toHex() !== GENESIS_HASH) throw new Error('RPC genesis mismatch');
+}
 
 async function getApi(): Promise<ApiPromise> {
   if (!apiPromise) {
     apiPromise = (async () => {
       const api = await ApiPromise.create({ provider: new WsProvider(RPC_URL, 2_500, {}, 10_000) });
       await api.isReady;
-      if (api.genesisHash.toHex() !== GENESIS_HASH) {
-        await api.disconnect();
-        throw new Error('RPC genesis mismatch');
-      }
+      await assertGenesis(api);
       return api;
     })().catch((error) => {
       apiPromise = undefined;
       throw error;
     });
   }
-  return apiPromise;
+  const api = await apiPromise;
+  try {
+    await assertGenesis(api);
+    return api;
+  } catch (error) {
+    apiPromise = undefined;
+    await api.disconnect();
+    throw error;
+  }
 }
 
 export function formatMfc(value: bigint): string {
@@ -119,87 +134,187 @@ function storageSet(values: Record<string, unknown>): Promise<void> {
   });
 }
 
-async function appendHistory(entry: HistoryEntry): Promise<void> {
-  const history = (await storageGet<HistoryEntry[]>(HISTORY_KEY)) || [];
-  history.unshift(entry);
+async function readHistory(): Promise<HistoryEntry[]> {
+  return (await storageGet<HistoryEntry[]>(HISTORY_KEY)) || [];
+}
+
+async function upsertHistory(entry: HistoryEntry): Promise<void> {
+  const history = await readHistory();
+  const index = history.findIndex((candidate) => candidate.hash === entry.hash);
+  if (index >= 0 && history[index]!.status !== 'pending' && entry.status === 'pending') return;
+  if (index >= 0) history[index] = entry;
+  else history.unshift(entry);
+  history.sort((a, b) => b.timestamp - a.timestamp);
   await storageSet({ [HISTORY_KEY]: history.slice(0, 100) });
 }
 
-export async function transfer(accountId: string, recipient: string, amount: string): Promise<TransferResult> {
+function dispatchErrorText(api: ApiPromise, error: { isModule: boolean; asModule: unknown; toString(): string }): string {
+  if (error.isModule) {
+    const meta = api.registry.findMetaError(error.asModule as Parameters<ApiPromise['registry']['findMetaError']>[0]);
+    return `${meta.section}.${meta.name}`;
+  }
+  return error.toString();
+}
+
+async function reconcileEntry(api: ApiPromise, entry: HistoryEntry): Promise<void> {
+  const finalizedHash = await api.rpc.chain.getFinalizedHead();
+  const finalizedHeader = await api.rpc.chain.getHeader(finalizedHash);
+  const finalizedNumber = finalizedHeader.number.toNumber();
+  let checked = entry.lastCheckedNumber ?? 0;
+  for (let number = checked + 1; number <= finalizedNumber; number += 1) {
+    const blockHash = await api.rpc.chain.getBlockHash(number);
+    const block = await api.rpc.chain.getBlock(blockHash);
+    const extrinsicIndex = block.block.extrinsics.findIndex((item) => item.hash.toHex() === entry.hash);
+    if (extrinsicIndex >= 0) {
+      const at = await api.at(blockHash);
+      const records = await at.query.system!.events!() as unknown as Vec<EventRecord>;
+      const related = records.filter(({ phase }) => phase.isApplyExtrinsic && Number(phase.asApplyExtrinsic.toString()) === extrinsicIndex);
+      const failed = related.find(({ event }) => api.events.system!.ExtrinsicFailed!.is(event));
+      const feeEvent = related.find(({ event }) => api.events.transactionPayment!.TransactionFeePaid!.is(event));
+      await upsertHistory({
+        ...entry,
+        blockHash: blockHash.toHex(),
+        status: failed ? 'failed' : 'finalized',
+        fee: feeEvent?.event.data[1]?.toString() || entry.fee,
+        error: failed ? dispatchErrorText(api, failed.event.data[0] as never) : undefined,
+        lastCheckedNumber: number
+      });
+      return;
+    }
+    checked = number;
+  }
+  const status: TransferStatus = entry.expiresAfter !== undefined && finalizedNumber > entry.expiresAfter ? 'dropped' : 'pending';
+  await upsertHistory({ ...entry, status, lastCheckedNumber: checked });
+}
+
+async function reconcilePending(): Promise<void> {
+  if (reconciling) return;
+  const pending = (await readHistory()).filter((entry) => entry.status === 'pending');
+  if (!pending.length) return;
+  reconciling = true;
+  try {
+    const api = await getApi();
+    for (const entry of pending) await reconcileEntry(api, entry);
+  } catch {
+    return;
+  } finally {
+    reconciling = false;
+  }
+}
+
+export async function transfer(accountId: string, recipient: string, amount: string, maxFee: string): Promise<TransferResult> {
   const account = await getAccountById(accountId);
   if (!account) throw new Error('Account not found');
   if (account.kind === 'watchOnly') throw new Error('Watch-only accounts cannot sign');
   if (account.network !== 'testnet') throw new Error('Mainnet transfers are not live');
+  if ((await readHistory()).some((entry) => entry.sender === account.accountId && entry.status === 'pending')) {
+    throw new Error('A transaction is already pending for this account');
+  }
 
   const preview = await createPreview(account.accountId, recipient, amount);
-  const secret = await readSecret(account.id);
+  if (!/^\d+$/.test(maxFee)) throw new Error('A valid maximum fee is required');
+  if (BigInt(preview.fee) > BigInt(maxFee)) throw new Error('Fee increased after preview; review the new fee before signing');
+
+  const secret = await readSecret(account.id, account.accountId);
   await waitReady();
   const pair = new Keyring({ ss58Format: 42, type: 'sr25519' }).addFromUri(secret);
+  if (u8aToHex(pair.publicKey) !== account.accountId) throw new Error('Decrypted key does not match the selected account');
+
   const api = await getApi();
   const recipientAccountId = decodeAddress(recipient).accountId;
   const amountBase = BigInt(preview.amount);
-  const extrinsic = await api.tx.balances!.transferKeepAlive!(recipientAccountId, amountBase).signAsync(pair);
-  const result = await new Promise<{ hash: string; blockHash: string; fee: string }>((resolve, reject) => {
+  const signingHash = await api.rpc.chain.getBlockHash();
+  const signingHeader = await api.rpc.chain.getHeader(signingHash);
+  const signingNumber = signingHeader.number.toNumber();
+  const extrinsic = await api.tx.balances!.transferKeepAlive!(recipientAccountId, amountBase).signAsync(pair, { blockHash: signingHash, era: MORTALITY_BLOCKS });
+  const entry: HistoryEntry = {
+    sender: account.accountId,
+    recipient: recipientAccountId,
+    amount: preview.amount,
+    fee: preview.fee,
+    hash: extrinsic.hash.toHex(),
+    blockHash: null,
+    status: 'pending',
+    timestamp: Date.now(),
+    expiresAfter: signingNumber + MORTALITY_BLOCKS,
+    lastCheckedNumber: signingNumber - 1
+  };
+  await upsertHistory(entry);
+
+  const outcome = await new Promise<{ status: TransferStatus; blockHash: string | null; fee: string; error?: string }>((resolve) => {
     let unsubscribe: (() => void) | undefined;
     let settled = false;
-    const timeout = setTimeout(() => finish(new Error('Transaction was not finalized within 90 seconds')), 90_000);
-    const finish = (error?: Error, value?: { hash: string; blockHash: string; fee: string }) => {
+    const finish = (value: { status: TransferStatus; blockHash: string | null; fee: string; error?: string }) => {
       if (settled) return;
       settled = true;
       clearTimeout(timeout);
       unsubscribe?.();
-      if (error) reject(error);
-      else if (value) resolve(value);
+      resolve(value);
     };
+    const timeout = setTimeout(() => finish({ status: 'pending', blockHash: null, fee: preview.fee }), FINALITY_TIMEOUT_MS);
 
     void extrinsic.send((submission) => {
       if (submission.isError) {
-        finish(new Error(`Transaction submission failed: ${submission.status.type}`));
+        finish({ status: 'dropped', blockHash: null, fee: preview.fee, error: `Transaction submission failed: ${submission.status.type}` });
         return;
       }
       if (!submission.isFinalized) return;
       if (submission.dispatchError) {
-        if (submission.dispatchError.isModule) {
-          const meta = api.registry.findMetaError(submission.dispatchError.asModule);
-          finish(new Error(`Transaction failed: ${meta.section}.${meta.name}`));
-        } else {
-          finish(new Error(`Transaction failed: ${submission.dispatchError.toString()}`));
-        }
+        finish({
+          status: 'failed',
+          blockHash: submission.status.asFinalized.toHex(),
+          fee: preview.fee,
+          error: dispatchErrorText(api, submission.dispatchError)
+        });
         return;
       }
       if (!submission.events.some(({ event }) => api.events.system!.ExtrinsicSuccess!.is(event))) {
-        finish(new Error('Finalized transaction has no success event'));
+        finish({ status: 'failed', blockHash: submission.status.asFinalized.toHex(), fee: preview.fee, error: 'Finalized transaction has no success event' });
         return;
       }
       const feeEvent = submission.events.find(({ event }) => api.events.transactionPayment!.TransactionFeePaid!.is(event));
-      finish(undefined, {
-        hash: extrinsic.hash.toHex(),
+      finish({
+        status: 'finalized',
         blockHash: submission.status.asFinalized.toHex(),
         fee: feeEvent?.event.data[1]?.toString() || preview.fee
       });
     }).then((stop) => {
       unsubscribe = stop;
       if (settled) stop();
-    }).catch((error: unknown) => finish(error instanceof Error ? error : new Error('Transaction submission failed')));
+    }).catch((error: unknown) => finish({
+      status: 'pending',
+      blockHash: null,
+      fee: preview.fee,
+      error: error instanceof Error ? error.message : 'Transaction status is temporarily unavailable'
+    }));
   });
 
-  const entry: HistoryEntry = {
-    sender: account.accountId,
-    recipient: recipientAccountId,
-    amount: preview.amount,
-    fee: result.fee,
-    hash: result.hash,
-    blockHash: result.blockHash,
-    status: 'finalized',
-    timestamp: Date.now()
+  const finalEntry = { ...entry, ...outcome };
+  await upsertHistory(finalEntry);
+  return {
+    ...preview,
+    hash: entry.hash,
+    blockHash: outcome.blockHash,
+    status: outcome.status,
+    fee: outcome.fee
   };
-  await appendHistory(entry);
-  return { ...preview, ...result };
 }
 
 export async function getHistory(accountId: string): Promise<HistoryEntry[]> {
-  const history = (await storageGet<HistoryEntry[]>(HISTORY_KEY)) || [];
+  void reconcilePending();
+  const history = await readHistory();
   return history
     .filter((entry) => entry.sender === accountId || entry.recipient === accountId)
     .sort((a, b) => b.timestamp - a.timestamp);
 }
+
+export async function deleteHistoryForAccount(accountId: string): Promise<void> {
+  const history = await readHistory();
+  await storageSet({
+    [HISTORY_KEY]: history.filter((entry) => entry.sender !== accountId && entry.recipient !== accountId)
+  });
+}
+
+setInterval(() => {
+  void reconcilePending();
+}, 15_000);

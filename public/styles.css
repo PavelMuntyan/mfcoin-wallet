@@ -157,3 +157,23 @@ button:disabled { cursor: not-allowed; opacity: .5; }
   .account-tabs button { font-size: 11px; }
   .account-tab-panel { padding: 16px; }
 }
+
+
+.backup-card form { margin-top: 20px; }
+.settings-content { display: grid; gap: 24px; padding: 0 16px 18px; }
+.settings-content section { min-width: 0; }
+.settings-content section + section { padding-top: 20px; border-top: 1px solid var(--line); }
+.settings-content h3 { margin: 0 0 12px; font-size: 16px; }
+.settings-content p { color: var(--muted); font-size: 13px; line-height: 1.55; }
+.secret-export { margin-top: 14px; padding: 12px; border: 1px solid var(--line); border-radius: 11px; background: var(--panel-soft); }
+.secret-export code { display: block; max-height: 120px; overflow-y: auto; color: var(--accent); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; line-height: 1.65; overflow-wrap: anywhere; user-select: all; }
+.secret-actions, .delete-actions { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-top: 12px; }
+.delete-actions .secondary-button, .delete-actions .danger-button { flex: 1; }
+.danger-button { border: 1px solid var(--accent); border-radius: 11px; padding: 12px 16px; color: var(--accent); background: transparent; cursor: pointer; font-weight: 750; }
+.danger-button:hover { background: var(--panel-soft); }
+.confirmation-address { display: grid; gap: 8px; margin-bottom: 8px; padding: 12px; border: 1px solid var(--accent); border-radius: 10px; background: var(--panel-soft); }
+.confirmation-address span { color: var(--accent); font-size: 11px; font-weight: 750; }
+.confirmation-address code { color: var(--text); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; line-height: 1.55; overflow-wrap: anywhere; user-select: all; }
+
+.copy-secret-button { display: inline-flex; align-items: center; gap: 6px; }
+.copy-secret-button svg { flex-shrink: 0; }

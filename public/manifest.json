@@ -3,10 +3,9 @@
   "name": "MFCoin Wallet",
   "short_name": "MFCoin",
   "description": "A minimal, security-first wallet for MFCoin.",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "minimum_chrome_version": "111",
   "permissions": ["storage"],
-  "host_permissions": ["http://127.0.0.1/*", "ws://127.0.0.1/*"],
   "background": {
     "service_worker": "background.js",
     "type": "module"
@@ -26,6 +25,6 @@
     "128": "images/mfcoin-128.png"
   },
   "content_security_policy": {
-    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'; connect-src 'self' https://mf.life wss://mf.life ws://127.0.0.1:9944 http://127.0.0.1:9944"
+    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'; connect-src 'self' https://mf.life wss://mf.life"
   }
 }
