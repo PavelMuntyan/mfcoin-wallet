@@ -22,6 +22,8 @@ A lightweight, English-only, non-custodial browser wallet for the MFCoin communi
 - Mortal transfers with a 64-block lifetime, `pending`, `finalized`, `failed` and `dropped` states.
 - Pending history is stored before broadcast and reconciled after timeout or service-worker restart. A second transfer from the same account is blocked while it is pending.
 - Explorer-backed incoming and outgoing history with rewards, fees, 30-event pages and links to finalized blocks and transactions. Local pending entries are merged without duplication; Explorer outages fall back to a clearly marked local-only view.
+- Native community-asset balances and 30-event account history. Create assets with metadata in two consecutive signed transactions, mint as the issuer and transfer with decimal-aware validation.
+- Asset operations revalidate the account, network, public key, genesis, issuer or balance and a user-approved maximum fee in the background. Pending create/metadata stages can be reconciled after a service-worker restart without rebroadcasting the current transaction.
 - Settings with password-gated seed/private-key export, timed reveal, clipboard copy and account deletion.
 - MF Life visual language, dark theme by default and a light-theme toggle.
 
@@ -29,7 +31,6 @@ A lightweight, English-only, non-custodial browser wallet for the MFCoin communi
 
 - dApp connections and external signing.
 - EVM, TON, Cardano, Bitcoin and unrelated chains.
-- Token balances/history until a supported token pallet and indexer integration exist.
 - Swaps until a reviewed protocol or pallet exists.
 - Hardware wallets, proxies and advanced multisig workflows.
 

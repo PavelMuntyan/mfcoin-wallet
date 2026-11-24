@@ -189,3 +189,23 @@ button:disabled { cursor: not-allowed; opacity: .5; }
 .pagination-controls .load-more { flex: 1; width: auto; margin-top: 0; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; color: var(--text); background: transparent; cursor: pointer; font: inherit; font-size: 12px; font-weight: 750; }
 .pagination-controls .load-more:hover { border-color: var(--accent); background: var(--panel-soft); }
 .pagination-controls .load-more:disabled { cursor: wait; opacity: .55; }
+
+.assets-content { display: grid; gap: 18px; padding: 0 16px 18px; }
+.asset-balances { display: grid; gap: 8px; }
+.asset-balances > button { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; padding: 13px; border: 1px solid var(--line); border-radius: 11px; color: var(--text); background: var(--panel-soft); cursor: pointer; text-align: left; }
+.asset-balances > button:hover { border-color: var(--accent); }
+.asset-balances > button > span { display: grid; gap: 4px; min-width: 0; }
+.asset-balances small { color: var(--muted); font-size: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.asset-balances b { flex-shrink: 0; color: var(--accent); font-size: 13px; }
+.asset-operations { display: grid; gap: 14px; padding-top: 18px; border-top: 1px solid var(--line); }
+.asset-operations .form-stack, .asset-operations .preview-card { padding: 0; }
+.asset-history { display: grid; gap: 10px; padding-top: 18px; border-top: 1px solid var(--line); }
+.asset-history h3 { margin: 0; font-size: 15px; }
+.asset-history .history-entry { display: block; padding: 13px; border-radius: 11px; color: inherit; background: var(--panel-soft); text-decoration: none; }
+.asset-history .history-entry:hover { outline: 1px solid var(--line); }
+.asset-history .history-entry > div { display: flex; justify-content: space-between; gap: 10px; }
+.asset-history .history-entry > div span { color: var(--accent); font-size: 11px; }
+.asset-history .history-entry p { margin: 6px 0; color: var(--muted); font-size: 12px; }
+.asset-history .history-entry code { color: var(--muted); font-size: 11px; }
+.asset-history .pagination-controls { margin: 0; }
+.assets-content > .watch-note, .assets-content .asset-operations > .watch-note, .asset-history > .watch-note { padding: 0; margin: 0; }

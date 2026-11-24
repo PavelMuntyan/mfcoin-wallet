@@ -24,7 +24,7 @@ async function assertGenesis(api: ApiPromise): Promise<void> {
   if (genesis.toHex() !== GENESIS_HASH) throw new Error('RPC genesis mismatch');
 }
 
-async function getApi(): Promise<ApiPromise> {
+export async function getApi(): Promise<ApiPromise> {
   if (!apiPromise) {
     apiPromise = (async () => {
       const api = await ApiPromise.create({ provider: new WsProvider(RPC_URL, 2_500, {}, 10_000) });

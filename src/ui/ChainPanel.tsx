@@ -3,6 +3,7 @@ import { toDataURL } from 'qrcode';
 import { sendChainRequest } from './api';
 import { formatMfc, shortHash } from './format';
 import SettingsPanel from './SettingsPanel';
+import AssetPanel from './AssetPanel';
 import type { PublicAccount, WalletState } from '../shared/accounts';
 import type { BalanceView, HistoryDirection, HistoryEntry, HistoryPage, TransferPreview, TransferResult } from '../shared/chain';
 
@@ -177,6 +178,8 @@ export default function ChainPanel({ account, onChange, onDeleted }: Props) {
       ) : (
         <p className="watch-note">{account.kind === 'watchOnly' ? 'Watch-only accounts cannot sign transactions.' : 'Mainnet transfers are not live.'}</p>
       )}
+
+      {account.network === 'testnet' && <AssetPanel account={account} />}
 
       {error && <p className="form-error" role="alert">{error}</p>}
       {notice && <p className="form-notice" role="status">{notice}</p>}

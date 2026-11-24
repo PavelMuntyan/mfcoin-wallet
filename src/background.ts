@@ -2,6 +2,7 @@ import type { AccountRequest, AccountResponse, WalletState } from './shared/acco
 import type { ChainRequest, ChainResponse } from './shared/chain';
 import { addWatchOnly, confirmBackup, createAccount, exportSecret, getAccountById, getState, importPrivateKey, importSeed, removeAccount, selectAccount } from './background/accounts';
 import { deleteHistoryForAccount, getBalance, getHistory, previewTransfer, transfer } from './background/chain';
+import { deleteAssetHistoryForAccount, getAssetHistory, getAssets, previewAssetOperation, submitAssetOperation } from './background/assets';
 import { createVault, lockVault, unlockVault } from './background/vault';
 
 async function handle(request: AccountRequest): Promise<AccountResponse> {
@@ -52,6 +53,7 @@ async function handle(request: AccountRequest): Promise<AccountResponse> {
         if (!account) throw new Error('Account not found');
         state = await removeAccount(request.request.id, request.request.password);
         await deleteHistoryForAccount(account.accountId);
+        await deleteAssetHistoryForAccount(account.accountId);
         break;
       }
       default:
@@ -78,6 +80,18 @@ async function handleChain(request: ChainRequest): Promise<ChainResponse<unknown
         break;
       case 'chain.history':
         data = await getHistory(request.request.accountId, request.request.direction, request.request.cursor);
+        break;
+      case 'chain.assets':
+        data = await getAssets(request.request.accountId);
+        break;
+      case 'chain.assetPreview':
+        data = await previewAssetOperation(request.request.sender, request.request.input);
+        break;
+      case 'chain.assetSubmit':
+        data = await submitAssetOperation(request.request.accountId, request.request.input, request.request.maxFee);
+        break;
+      case 'chain.assetHistory':
+        data = await getAssetHistory(request.request.accountId, request.request.direction, request.request.cursor);
         break;
       default:
         throw new Error('Unsupported chain request');
