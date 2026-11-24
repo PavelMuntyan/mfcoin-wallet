@@ -177,7 +177,7 @@ export default function AccountDashboard({ state, onChange, onLock }: Props) {
               <img src="images/mfcoin-original.svg" alt="" width="42" height="42" />
               <span className="account-card-copy">
                 <span className="account-card-title">{current.name}</span>
-                <span className="account-card-meta">{accountType(current)} · {current.network === 'mainnet' ? 'Mainnet · not live' : 'Testnet 112'}</span>
+                <span className="account-card-meta">{accountType(current)} · {current.network === 'mainnet' ? 'Mainnet · not live' : 'Testnet 115'}</span>
               </span>
             </span>
             <Chevron />
@@ -189,7 +189,7 @@ export default function AccountDashboard({ state, onChange, onLock }: Props) {
             <div className="account-options" role="listbox" aria-label="Available accounts">
               {state.accounts.map((account) => (
                 <button key={account.id} type="button" role="option" aria-selected={account.id === current.id} onClick={() => chooseAccount(account.id)}>
-                  <span className="account-option-copy"><strong>{account.name}</strong><small>{accountType(account)} · {account.network === 'mainnet' ? 'Mainnet' : 'Testnet 112'}</small></span>
+                  <span className="account-option-copy"><strong>{account.name}</strong><small>{accountType(account)} · {account.network === 'mainnet' ? 'Mainnet' : 'Testnet 115'}</small></span>
                   <span className="account-selected" aria-hidden="true">{account.id === current.id ? '✓' : ''}</span>
                 </button>
               ))}
@@ -273,7 +273,7 @@ export default function AccountDashboard({ state, onChange, onLock }: Props) {
               <div className="export-format" role="group" aria-label="Network">
                 <span className="field-label">Network</span>
                 <div className="export-format-buttons">
-                  <button type="button" aria-pressed={watchNetwork === 'testnet'} onClick={() => setWatchNetwork('testnet')}>Testnet 112</button>
+                  <button type="button" aria-pressed={watchNetwork === 'testnet'} onClick={() => setWatchNetwork('testnet')}>Testnet 115</button>
                   <button type="button" aria-pressed={watchNetwork === 'mainnet'} onClick={() => setWatchNetwork('mainnet')}>Mainnet · not live</button>
                 </div>
               </div>

@@ -148,7 +148,7 @@ export async function previewAssetOperation(sender: string, input: AssetOperatio
 
   if (input.operation !== 'transfer') throw new Error('Unsupported asset operation');
   const decoded = decodeAddress(input.recipient || '');
-  if (decoded.network !== 'testnet') throw new Error('Recipient address is not a Testnet 112 address');
+  if (decoded.network !== 'testnet') throw new Error('Recipient address is not a Testnet 115 address');
   const [account, extrinsic] = await Promise.all([
     (api.query.assets as any).account!(assetId, sender),
     (api.tx.assets as any).transfer!(assetId, decoded.accountId, amount)

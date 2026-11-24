@@ -169,7 +169,7 @@ export default function AssetPanel({ account }: { account: PublicAccount }) {
             </form>
             {preview && (
               <div className="preview-card">
-                <div className="confirmation-address"><span>{preview.operation.toUpperCase()} · ASSET #{preview.assetId} · TESTNET 112</span><code>{preview.name || 'Metadata is not set'} {preview.symbol ? `(${preview.symbol})` : ''}</code></div>
+                <div className="confirmation-address"><span>{preview.operation.toUpperCase()} · ASSET #{preview.assetId} · TESTNET 115</span><code>{preview.name || 'Metadata is not set'} {preview.symbol ? `(${preview.symbol})` : ''}</code></div>
                 {preview.recipient && <div className="confirmation-address"><span>Recipient</span><code>{preview.recipient}</code></div>}
                 {preview.operation !== 'create' && <p>Amount <strong>{formatAsset(preview.amount, preview.decimals, preview.symbol)}</strong></p>}
                 <p>Maximum total gas <strong>{formatMfc(preview.fee)}</strong></p>

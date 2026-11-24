@@ -11,7 +11,7 @@ import { readSecret } from './vault';
 
 const RPC_URL = process.env.MFCOIN_RPC_URL || 'wss://mf.life/ws';
 const EXPLORER_URL = process.env.MFCOIN_EXPLORER_URL || 'https://mf.life/api/explorer';
-const GENESIS_HASH = process.env.MFCOIN_GENESIS_HASH || '0x085a6799f4e791867e6dbd152e47eda04df2cb05add46f278ec4553f3e5b8a52';
+const GENESIS_HASH = process.env.MFCOIN_GENESIS_HASH || '0xdb6842ad250eddde81a55be24cd1ef203bce74515ecca97eaac70fed44039092';
 const FINALITY_TIMEOUT_MS = Number(process.env.MFCOIN_FINALITY_TIMEOUT_MS || 90_000);
 const UNIT = 1_000_000_000_000n;
 const HISTORY_KEY = 'mfcoin.history.v1';
@@ -86,7 +86,7 @@ export async function getBalance(accountId: string): Promise<BalanceView> {
 
 async function createPreview(sender: string, recipient: string, amount: string): Promise<TransferPreview> {
   const decodedRecipient = decodeAddress(recipient);
-  if (decodedRecipient.network !== 'testnet') throw new Error('Recipient address is not a Testnet 112 address');
+  if (decodedRecipient.network !== 'testnet') throw new Error('Recipient address is not a Testnet 115 address');
   const amountBase = parseMfcAmount(amount);
   const api = await getApi();
   const [account, extrinsic] = await Promise.all([

@@ -165,7 +165,7 @@ export default function ChainPanel({ account, onChange, onDeleted }: Props) {
           </form>
           {preview && (
             <div className="preview-card">
-              <div className="confirmation-address"><span>Recipient · Testnet 112</span><code>{recipient.trim()}</code></div>
+              <div className="confirmation-address"><span>Recipient · Testnet 115</span><code>{recipient.trim()}</code></div>
               <p>Amount <strong>{formatMfc(preview.amount)}</strong></p>
               <p>Maximum gas fee <strong>{formatMfc(preview.fee)}</strong></p>
               <p>Total <strong>{formatMfc(preview.total)}</strong></p>
