@@ -1,9 +1,16 @@
 node_modules/
 build/
 dist/
+dist-web/
 coverage/
 *.log
 *.zip
+*.apk
+.android-sdk/
+.android-tools/
+.gradle-android/
+android/.gradle/
+android/app/build/
 .DS_Store
 .env
 .env.*

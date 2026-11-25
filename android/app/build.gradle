@@ -1,0 +1,39 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'life.mf.wallet'
+    compileSdk 35
+
+    defaultConfig {
+        applicationId 'life.mf.wallet'
+        minSdk 26
+        targetSdk 35
+        versionCode 601
+        versionName '0.6.1'
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+tasks.register('syncWebAssets', Sync) {
+    from(rootProject.file('../dist-web'))
+    into('src/main/assets')
+    doLast {
+        def bundle = file('src/main/assets/index.js')
+        if (!bundle.isFile() || bundle.length() < 1_000_000) {
+            throw new GradleException('Web bundle is missing from Android assets; run npm run build first')
+        }
+    }
+}
+preBuild.dependsOn(syncWebAssets)

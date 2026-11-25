@@ -53,6 +53,8 @@ The extension is generated in `build/`. Load that directory through `chrome://ex
 
 For a local devnet, set `MFCOIN_RPC_URL`, `MFCOIN_GENESIS_HASH` and optionally `MFCOIN_FINALITY_TIMEOUT_MS`, `MFCOIN_LOCK_TIMEOUT_MS` or `MFCOIN_EXPLORER_URL` before building. Localhost permissions are added only when the configured RPC URL is local.
 
+The PWA build is generated in `dist-web/`. For the Android WebView wrapper and APK instructions, see [ANDROID.md](ANDROID.md).
+
 ## Verification
 
 `npm test` covers mortal-expiry bounds, cross-history pending detection, exclusive account locks, explicit metadata requirements and malformed Explorer responses. TypeScript and production builds pass. `npm audit --omit=dev` reports no known vulnerabilities.

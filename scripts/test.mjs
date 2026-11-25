@@ -12,7 +12,8 @@ try {
       'src/background/transaction-lock.ts',
       'src/background/explorer-validation.ts',
       'src/background/asset-history.ts',
-      'src/ui/format.ts'
+      'src/ui/format.ts',
+      'src/web/chrome-shim.ts'
     ],
     outdir: output,
     entryNames: '[name]',
