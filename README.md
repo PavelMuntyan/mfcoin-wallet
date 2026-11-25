@@ -56,3 +56,7 @@ For a local devnet, set `MFCOIN_RPC_URL`, `MFCOIN_GENESIS_HASH` and optionally `
 ## Verification
 
 `npm test` covers mortal-expiry bounds, cross-history pending detection, exclusive account locks, explicit metadata requirements and malformed Explorer responses. TypeScript and production builds pass. `npm audit --omit=dev` reports no known vulnerabilities.
+
+## License
+
+Released into the public domain under [The Unlicense](LICENSE).
