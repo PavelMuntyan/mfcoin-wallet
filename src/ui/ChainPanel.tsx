@@ -154,9 +154,8 @@ export default function ChainPanel({ account, onChange, onDeleted }: Props) {
 
       {account.network === 'testnet' && (
         <div className="balance-line">
-          <span>Available</span>
-          <strong>{balance ? formatMfc(balance) : 'Loading…'}</strong>
-          <button className="text-button" type="button" onClick={() => loadBalance()}>Refresh</button>
+          <div className="balance-topline"><span>Available</span><button className="text-button" type="button" onClick={() => loadBalance()}>Refresh</button></div>
+          <strong className="balance-value">{balance ? formatMfc(balance) : 'Loading…'}</strong>
         </div>
       )}
 
