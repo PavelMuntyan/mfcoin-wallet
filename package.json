@@ -6,6 +6,7 @@
   "description": "A minimal, security-first browser wallet for MFCoin.",
   "scripts": {
     "build": "node scripts/build.mjs",
+    "package": "node scripts/package-release.mjs",
     "typecheck": "tsc --noEmit",
     "test": "node scripts/test.mjs"
   },
