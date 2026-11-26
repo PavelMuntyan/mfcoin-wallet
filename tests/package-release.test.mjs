@@ -18,7 +18,8 @@ test('release ZIP contains extension files at the archive root', () => {
 
 test('side panel layout follows the panel width instead of the browser viewport', () => {
   const styles = readFileSync('public/styles.css', 'utf8');
-  assert.ok(styles.includes('container-type: inline-size'));
-  assert.ok(styles.includes('@container (max-width: 800px)'));
-  assert.ok(styles.includes('.dashboard h1 { font-size: 34px; }'));
+  assert.ok(styles.includes('container-type: normal'));
+  assert.ok(styles.includes('@media (max-width: 800px)'));
+  assert.ok(styles.includes('font-size: clamp(28px, 7vw, 36px)'));
+  assert.ok(styles.includes('.topbar-actions { flex-shrink: 0; margin-left: auto; }'));
 });
