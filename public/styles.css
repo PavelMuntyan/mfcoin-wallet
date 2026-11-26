@@ -216,23 +216,9 @@ button:disabled { cursor: not-allowed; opacity: .5; }
 .side-panel-button:hover { border-color: var(--accent); color: var(--accent); }
 .side-panel-button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
-body { min-width: 0; width: 100%; }
-.wallet-shell { max-width: 100%; container-type: inline-size; }
-
-@container (max-width: 800px) {
-  .wallet-shell { padding: 18px; }
-  .topbar { gap: 10px; }
-  .brand img { width: 36px; height: 36px; }
-  .brand-name { font-size: 17px; }
-  .brand-version { font-size: 10px; }
-  .onboarding h1,
-  .dashboard h1 { font-size: 34px; }
-  .hero { padding-top: 34px; }
-  .theme-button { padding: 8px 10px; }
-}
-
-body { min-width: 320px; }
-.wallet-shell { width: 100%; max-width: 760px; container-type: normal; }
+body { min-width: 320px; width: 560px; }
+html.side-panel body, html.web-wallet body { min-width: 0; width: 100%; }
+.wallet-shell { width: 100%; max-width: 760px; }
 .topbar { flex-wrap: wrap; row-gap: 12px; }
 .brand { min-width: 0; }
 .topbar-actions { flex-shrink: 0; margin-left: auto; }

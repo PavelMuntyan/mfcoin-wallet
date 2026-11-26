@@ -27,7 +27,7 @@ export function installWebChrome(): void {
       return lastError;
     },
     getManifest() {
-      return { version: process.env.MFCOIN_WALLET_VERSION || '0.6.3' };
+      return { version: process.env.MFCOIN_WALLET_VERSION || '0.6.4' };
     },
     onMessage: {
       addListener(next: MessageListener) {
