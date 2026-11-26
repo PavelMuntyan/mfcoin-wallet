@@ -29,5 +29,5 @@ test('web runtime delivers a request through the background listener', async () 
   });
   const response = await chrome.runtime.sendMessage({ amount: 21n });
   assert.deepEqual(response, { ok: true, balance: 42n });
-  assert.equal(chrome.runtime.getManifest().version, '0.6.4');
+  assert.equal(chrome.runtime.getManifest().version, '0.6.5');
 });

@@ -5,6 +5,15 @@ import ErrorBoundary from './ui/ErrorBoundary';
 
 const container = document.getElementById('root');
 
+if (document.documentElement.classList.contains('side-panel')) {
+  const fitSidePanel = () => {
+    const scale = Math.min(1, window.innerWidth / 320);
+    document.documentElement.style.setProperty('--side-panel-scale', scale.toString());
+  };
+  fitSidePanel();
+  window.addEventListener('resize', fitSidePanel);
+}
+
 if ('serviceWorker' in navigator && /^https?:$/.test(window.location.protocol)) {
   void navigator.serviceWorker.register('./service-worker.js').catch(() => undefined);
 }

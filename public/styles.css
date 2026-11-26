@@ -216,7 +216,7 @@ button:disabled { cursor: not-allowed; opacity: .5; }
 .side-panel-button:hover { border-color: var(--accent); color: var(--accent); }
 .side-panel-button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
-body { min-width: 320px; width: 560px; }
+body { min-width: 320px; width: 400px; }
 html.side-panel body, html.web-wallet body { min-width: 0; width: 100%; }
 .wallet-shell { width: 100%; max-width: 760px; }
 .topbar { flex-wrap: wrap; row-gap: 12px; }
@@ -237,4 +237,10 @@ html.side-panel body, html.web-wallet body { min-width: 0; width: 100%; }
 @media (max-width: 560px) {
   .theme-label { display: none; }
   .theme-button { width: 40px; padding: 0; justify-content: center; }
+}
+
+html.side-panel { --side-panel-scale: 1; }
+@media (max-width: 319px) {
+  html.side-panel body { overflow-x: hidden; }
+  html.side-panel .wallet-shell { width: 320px; zoom: var(--side-panel-scale); }
 }

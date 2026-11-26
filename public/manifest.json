@@ -3,7 +3,7 @@
   "name": "MFCoin Wallet",
   "short_name": "MFCoin",
   "description": "A minimal, security-first wallet for MFCoin.",
-  "version": "0.6.4",
+  "version": "0.6.5",
   "minimum_chrome_version": "116",
   "permissions": ["storage", "sidePanel"],
   "side_panel": {
