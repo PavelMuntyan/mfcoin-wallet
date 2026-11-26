@@ -1,4 +1,4 @@
-const CACHE = 'mfcoin-wallet-0.6.2';
+const CACHE = 'mfcoin-wallet-0.6.3';
 const SHELL = ['./', './index.html', './index.js', './styles.css', './images/mfcoin-original.svg', './images/mfcoin-128.png'];
 
 self.addEventListener('install', (event) => {

@@ -26,6 +26,7 @@ A lightweight, English-only, non-custodial browser wallet for the MFCoin communi
 - Asset operations revalidate the account, network, public key, genesis, issuer or balance and a user-approved fee cap in the background. Pending operations are bounded by their mortal expiry and never rebroadcast automatically.
 - Settings with password-gated seed/private-key export, timed reveal, clipboard copy and account deletion.
 - MF Life visual language, dark theme by default and a light-theme toggle.
+- Browser side panel support on Chrome 116+: clicking the extension icon opens the right-hand panel, while the existing popup remains available through the extension menu.
 
 ## Deliberately deferred
 

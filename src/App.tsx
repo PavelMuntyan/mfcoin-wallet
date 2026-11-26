@@ -15,6 +15,15 @@ export default function App() {
       .catch((caught) => setError(caught instanceof Error ? caught.message : 'Unable to initialize wallet'));
   }, []);
 
+  const supportsSidePanel = typeof chrome.sidePanel?.open === 'function';
+
+  async function openSidePanel() {
+    const currentWindow = await chrome.windows.getCurrent();
+    if (currentWindow.id === undefined) throw new Error('Current browser window is unavailable');
+    await chrome.sidePanel.open({ windowId: currentWindow.id });
+    window.close();
+  }
+
   function changeTheme() {
     const next = theme === 'dark' ? 'light' : 'dark';
     localStorage.setItem('mfcoin.theme', next);
@@ -34,10 +43,17 @@ export default function App() {
           <span className="brand-name">MFCOIN</span>
           <strong className="brand-version">2.0</strong>
         </a>
-        <button className="theme-button" type="button" onClick={changeTheme} aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`} aria-pressed={theme === 'dark'}>
-          <span className="theme-icon" aria-hidden="true">{theme === 'dark' ? '☀' : '☾'}</span>
-          <span className="theme-label">{theme === 'dark' ? 'Light' : 'Dark'} theme</span>
-        </button>
+        <div className="topbar-actions">
+          {supportsSidePanel && (
+            <button className="side-panel-button" type="button" onClick={openSidePanel} title="Open in browser side panel" aria-label="Open wallet in browser side panel">
+              <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M3 4h18v16H3zM15 4v16M15 8h6M15 12h6M15 16h6" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" /></svg>
+            </button>
+          )}
+          <button className="theme-button" type="button" onClick={changeTheme} aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`} aria-pressed={theme === 'dark'}>
+            <span className="theme-icon" aria-hidden="true">{theme === 'dark' ? '☀' : '☾'}</span>
+            <span className="theme-label">{theme === 'dark' ? 'Light' : 'Dark'} theme</span>
+          </button>
+        </div>
       </header>
 
       {error && <p className="form-error" role="alert">{error}</p>}
