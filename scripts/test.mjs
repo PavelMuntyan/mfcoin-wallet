@@ -8,6 +8,7 @@ const output = mkdtempSync(join(tmpdir(), 'mfcoin-wallet-tests-'));
 try {
   await build({
     entryPoints: [
+      'src/shared/network.ts',
       'src/background/reconcile.ts',
       'src/background/transaction-lock.ts',
       'src/background/explorer-validation.ts',

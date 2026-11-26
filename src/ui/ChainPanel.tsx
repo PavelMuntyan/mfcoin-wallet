@@ -6,6 +6,7 @@ import SettingsPanel from './SettingsPanel';
 import AssetPanel from './AssetPanel';
 import type { PublicAccount, WalletState } from '../shared/accounts';
 import type { BalanceView, HistoryDirection, HistoryEntry, HistoryPage, TransferPreview, TransferResult } from '../shared/chain';
+import { ADDRESS_HRP, EXPLORER_WEB_URL, NETWORK_LABEL, WALLET_NETWORK } from '../shared/network';
 
 interface Props {
   account: PublicAccount;
@@ -24,9 +25,9 @@ function historyTitle(entry: HistoryEntry, accountId: string): string {
 }
 
 function historyHref(entry: HistoryEntry): string {
-  if (entry.hash) return `https://mf.life/explorer/#/tx/${entry.hash}`;
-  if (entry.blockNumber !== undefined) return `https://mf.life/explorer/#/block/${entry.blockNumber}`;
-  return 'https://mf.life/explorer/';
+  if (entry.hash) return `${EXPLORER_WEB_URL}/#/tx/${entry.hash}`;
+  if (entry.blockNumber !== undefined) return `${EXPLORER_WEB_URL}/#/block/${entry.blockNumber}`;
+  return `${EXPLORER_WEB_URL}/`;
 }
 
 export default function ChainPanel({ account, onChange, onDeleted }: Props) {
@@ -57,7 +58,7 @@ export default function ChainPanel({ account, onChange, onDeleted }: Props) {
       .then((value) => generation === requestGeneration.current && setQr(value))
       .catch(() => generation === requestGeneration.current && setQr(''));
 
-    if (account.network === 'testnet') {
+    if (account.network === WALLET_NETWORK) {
       void loadBalance(generation);
       void loadHistory(undefined, generation);
     }
@@ -145,32 +146,31 @@ export default function ChainPanel({ account, onChange, onDeleted }: Props) {
       <details className="receive-panel">
         <summary>Receive MFC</summary>
         <div className="receive-content">
-          {account.network === 'mainnet' && <p className="watch-note">Mainnet · not live</p>}
           {qr && <img className="receive-qr" src={qr} alt={`QR code for ${account.address}`} />}
           <code className="full-address">{account.address}</code>
           <button className="secondary-button" type="button" onClick={copyAddress}>{copied ? 'Copied' : 'Copy address'}</button>
         </div>
       </details>
 
-      {account.network === 'testnet' && (
+      {account.network === WALLET_NETWORK && (
         <div className="balance-line">
           <div className="balance-topline"><span>Available</span><button className="text-button" type="button" onClick={() => loadBalance()}>Refresh</button></div>
           <strong className="balance-value">{balance ? formatMfc(balance) : 'Loading…'}</strong>
         </div>
       )}
 
-      {account.kind !== 'watchOnly' && account.network === 'testnet' ? (
+      {account.kind !== 'watchOnly' && account.network === WALLET_NETWORK ? (
         <details className="send-panel">
           <summary>Send MFC</summary>
           {hasPending && <p className="watch-note">A transaction is pending. Wait for a final status before sending another one.</p>}
           <form className="form-stack" onSubmit={previewTransfer}>
-            <label>Recipient address<input value={recipient} onChange={(event) => { setRecipient(event.target.value); setPreview(undefined); }} placeholder="tmfcx1…" autoComplete="off" required /></label>
+            <label>Recipient address<input value={recipient} onChange={(event) => { setRecipient(event.target.value); setPreview(undefined); }} placeholder={`${ADDRESS_HRP}1…`} autoComplete="off" required /></label>
             <label>Amount<input value={amount} onChange={(event) => { setAmount(event.target.value); setPreview(undefined); }} placeholder="0.001" inputMode="decimal" required /></label>
             <button className="primary-button" type="submit" disabled={busy || hasPending}>Calculate gas</button>
           </form>
           {preview && (
             <div className="preview-card">
-              <div className="confirmation-address"><span>Recipient · Testnet 115</span><code>{recipient.trim()}</code></div>
+              <div className="confirmation-address"><span>Recipient · {NETWORK_LABEL}</span><code>{recipient.trim()}</code></div>
               <p>Amount <strong>{formatMfc(preview.amount)}</strong></p>
               <p>Fee cap checked again before signing <strong>{formatMfc(preview.fee)}</strong></p>
               <p>Total <strong>{formatMfc(preview.total)}</strong></p>
@@ -181,15 +181,15 @@ export default function ChainPanel({ account, onChange, onDeleted }: Props) {
           {result && <p className="form-notice">{result.status === 'finalized' ? 'Finalized' : result.status === 'pending' ? 'Pending' : 'Not finalized'} transaction: <code>{shortHash(result.hash)}</code></p>}
         </details>
       ) : (
-        <p className="watch-note">{account.kind === 'watchOnly' ? 'Watch-only accounts cannot sign transactions.' : 'Mainnet transfers are not live.'}</p>
+        <p className="watch-note">{account.kind === 'watchOnly' ? 'Watch-only accounts cannot sign transactions.' : 'Account network does not match this wallet build.'}</p>
       )}
 
-      {account.network === 'testnet' && <AssetPanel account={account} />}
+      {account.network === WALLET_NETWORK && <AssetPanel account={account} />}
 
       {error && <p className="form-error" role="alert">{error}</p>}
       {notice && <p className="form-notice" role="status">{notice}</p>}
 
-      {account.network === 'testnet' && (
+      {account.network === WALLET_NETWORK && (
         <details className="history-panel">
           <summary>History</summary>
           {historyPage?.source === 'local' && <p className="watch-note">Explorer is unavailable. Showing local history only.</p>}

@@ -14,9 +14,10 @@ import { acquireAccountLock, hasPendingTransaction, isAccountActive } from './tr
 import { validateAssetBalances, validateAssetHistoryPage } from './explorer-validation';
 import { reconciliationExpired, reconciliationScanUntil } from './reconcile';
 import { normalizeAssetHistory } from './asset-history';
+import { ADDRESS_HRP, assertWalletNetwork, NETWORK_LABEL, networkStorageKey, WALLET_NETWORK } from '../shared/network';
 
 const EXPLORER_URL = process.env.MFCOIN_EXPLORER_URL || 'https://mf.life/api/explorer';
-const HISTORY_KEY = 'mfcoin.assets.history.v1';
+const HISTORY_KEY = networkStorageKey('mfcoin.assets.history.v1');
 const MORTALITY_BLOCKS = 64;
 const FINALITY_TIMEOUT_MS = Number(process.env.MFCOIN_FINALITY_TIMEOUT_MS || 90_000);
 const MAX_U128 = (1n << 128n) - 1n;
@@ -152,7 +153,7 @@ export async function previewAssetOperation(sender: string, input: AssetOperatio
 
   if (input.operation !== 'transfer') throw new Error('Unsupported asset operation');
   const decoded = decodeAddress(input.recipient || '');
-  if (decoded.network !== 'testnet') throw new Error('Recipient address is not a Testnet 115 address');
+  if (decoded.network !== WALLET_NETWORK) throw new Error(`Recipient address is not a ${NETWORK_LABEL} address`);
   const [account, extrinsic] = await Promise.all([
     (api.query.assets as any).account!(assetId, sender),
     (api.tx.assets as any).transfer!(assetId, decoded.accountId, amount)
@@ -168,7 +169,7 @@ async function signingPair(accountId: string) {
   const account = await getAccountById(accountId);
   if (!account) throw new Error('Account not found');
   if (account.kind === 'watchOnly') throw new Error('Watch-only accounts cannot sign');
-  if (account.network !== 'testnet') throw new Error('Mainnet asset operations are not live');
+  assertWalletNetwork(account.network);
   const secret = await readSecret(account.id, account.accountId);
   await waitReady();
   const pair = new Keyring({ ss58Format: 42, type: 'sr25519' }).addFromUri(secret);
@@ -436,7 +437,7 @@ async function explorerRequest(path: string): Promise<any> {
 }
 
 export async function getAssets(accountId: string): Promise<AssetBalances> {
-  const address = encodeAddress('tmfcx', accountId);
+  const address = encodeAddress(ADDRESS_HRP, accountId);
   const result = validateAssetBalances(await explorerRequest(`/accounts/${address}/assets`));
   return { assets: result.assets as CommunityAsset[], supported: result.supported, truncated: result.truncated };
 }
@@ -471,7 +472,7 @@ export async function getAssetHistory(accountId: string, direction?: HistoryDire
   const params = new URLSearchParams({ limit: '30' });
   if (direction && cursor) params.set(direction, cursor);
   try {
-    const address = encodeAddress('tmfcx', accountId);
+    const address = encodeAddress(ADDRESS_HRP, accountId);
     const page = validateAssetHistoryPage(await explorerRequest(`/accounts/${address}/asset-activity?${params}`));
     const events = (page.assetEvents as any[]).map((event: any) => mapExplorerEvent(event, accountId));
     const localOnly = local.filter((entry) => entry.status === 'pending' || entry.status === 'metadataRequired' || !events.some((event) => event.hash === entry.hash || event.hash === entry.createHash));

@@ -1,3 +1,5 @@
+import { networkStorageKey } from '../shared/network';
+
 const activeAccounts = new Set<string>();
 
 export function acquireAccountLock(accountId: string): () => void {
@@ -26,8 +28,8 @@ function storageGet<T>(key: string): Promise<T | undefined> {
 
 export async function hasPendingTransaction(walletId: string, accountId: string): Promise<boolean> {
   const [nativeHistory, assetHistory] = await Promise.all([
-    storageGet<Array<{ sender: string | null; status: string }>>('mfcoin.history.v1'),
-    storageGet<Array<{ walletId?: string; accountId: string; status: string }>>('mfcoin.assets.history.v1')
+    storageGet<Array<{ sender: string | null; status: string }>>(networkStorageKey('mfcoin.history.v1')),
+    storageGet<Array<{ walletId?: string; accountId: string; status: string }>>(networkStorageKey('mfcoin.assets.history.v1'))
   ]);
   return Boolean(
     nativeHistory?.some((entry) => entry.sender === accountId && entry.status === 'pending')

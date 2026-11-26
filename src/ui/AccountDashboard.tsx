@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useRef, useState } from 'react';
 import { sendWalletRequest } from './api';
 import ChainPanel from './ChainPanel';
 import type { AccountResponse, BackupChallenge, PublicAccount, WalletState } from '../shared/accounts';
+import { ADDRESS_HRP, NETWORK_LABEL, WALLET_NETWORK } from '../shared/network';
 
 interface Props {
   state: WalletState;
@@ -36,7 +37,6 @@ export default function AccountDashboard({ state, onChange, onLock }: Props) {
   const [mnemonic, setMnemonic] = useState('');
   const [privateKey, setPrivateKey] = useState('');
   const [watchAddress, setWatchAddress] = useState('');
-  const [watchNetwork, setWatchNetwork] = useState<'testnet' | 'mainnet'>('testnet');
   const [activeTab, setActiveTab] = useState<AccountTab>('new');
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const [backup, setBackup] = useState<BackupChallenge>();
@@ -124,7 +124,7 @@ export default function AccountDashboard({ state, onChange, onLock }: Props) {
 
   async function addWatchOnly(event: FormEvent) {
     event.preventDefault();
-    const response = await run(() => sendWalletRequest({ type: 'accounts.watchOnly', request: { name, address: watchAddress, network: watchNetwork } }));
+    const response = await run(() => sendWalletRequest({ type: 'accounts.watchOnly', request: { name, address: watchAddress, network: WALLET_NETWORK } }));
     if (response) {
       setWatchAddress('');
       setNotice('Watch-only account added');
@@ -183,7 +183,7 @@ export default function AccountDashboard({ state, onChange, onLock }: Props) {
               <img src="images/mfcoin-original.svg" alt="" width="42" height="42" />
               <span className="account-card-copy">
                 <span className="account-card-title">{current.name}</span>
-                <span className="account-card-meta">{accountType(current)} · {current.network === 'mainnet' ? 'Mainnet · not live' : 'Testnet 115'}</span>
+                <span className="account-card-meta">{accountType(current)} · {NETWORK_LABEL}</span>
               </span>
             </span>
             <Chevron />
@@ -195,7 +195,7 @@ export default function AccountDashboard({ state, onChange, onLock }: Props) {
             <div className="account-options" role="listbox" aria-label="Available accounts">
               {state.accounts.map((account) => (
                 <button key={account.id} type="button" role="option" aria-selected={account.id === current.id} onClick={() => chooseAccount(account.id)}>
-                  <span className="account-option-copy"><strong>{account.name}</strong><small>{accountType(account)} · {account.network === 'mainnet' ? 'Mainnet' : 'Testnet 115'}</small></span>
+                  <span className="account-option-copy"><strong>{account.name}</strong><small>{accountType(account)} · {NETWORK_LABEL}</small></span>
                   <span className="account-selected" aria-hidden="true">{account.id === current.id ? '✓' : ''}</span>
                 </button>
               ))}
@@ -276,14 +276,8 @@ export default function AccountDashboard({ state, onChange, onLock }: Props) {
               <h2>Add watch-only account</h2>
               <p>Track a public address. Watch-only accounts can never sign transactions.</p>
               <label>Account name<input value={name} onChange={(event) => setName(event.target.value)} maxLength={32} required /></label>
-              <div className="export-format" role="group" aria-label="Network">
-                <span className="field-label">Network</span>
-                <div className="export-format-buttons">
-                  <button type="button" aria-pressed={watchNetwork === 'testnet'} onClick={() => setWatchNetwork('testnet')}>Testnet 115</button>
-                  <button type="button" aria-pressed={watchNetwork === 'mainnet'} onClick={() => setWatchNetwork('mainnet')}>Mainnet · not live</button>
-                </div>
-              </div>
-              <label>Public address<input value={watchAddress} onChange={(event) => setWatchAddress(event.target.value)} placeholder={watchNetwork === 'mainnet' ? 'mfcx1…' : 'tmfcx1…'} autoComplete="off" required /></label>
+              <p>Network: <strong>{NETWORK_LABEL}</strong></p>
+              <label>Public address<input value={watchAddress} onChange={(event) => setWatchAddress(event.target.value)} placeholder={`${ADDRESS_HRP}1…`} autoComplete="off" required /></label>
               <button className="primary-button" type="submit" disabled={busy}>Add watch-only</button>
             </form>
           )}

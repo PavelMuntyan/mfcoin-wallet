@@ -3,6 +3,7 @@ import { sendChainRequest } from './api';
 import { formatAsset, formatMfc, shortHash } from './format';
 import type { PublicAccount } from '../shared/accounts';
 import type { AssetBalances, AssetHistoryEntry, AssetHistoryPage, AssetOperation, AssetOperationInput, AssetPreview, AssetResult, HistoryDirection } from '../shared/chain';
+import { ADDRESS_HRP, EXPLORER_WEB_URL, NETWORK_LABEL } from '../shared/network';
 
 const OPERATIONS: { id: AssetOperation; label: string }[] = [
   { id: 'create', label: 'Create' },
@@ -200,7 +201,7 @@ export default function AssetPanel({ account }: { account: PublicAccount }) {
                 <>
                   <label>Asset ID<input value={assetId} onChange={(event) => { setAssetId(event.target.value); setPreview(undefined); }} inputMode="numeric" placeholder="1" required /></label>
                   <label>Amount<input value={amount} onChange={(event) => { setAmount(event.target.value); setPreview(undefined); }} inputMode="decimal" placeholder="0.001" required /></label>
-                  {operation === 'transfer' && <label>Recipient address<input value={recipient} onChange={(event) => { setRecipient(event.target.value); setPreview(undefined); }} placeholder="tmfcx1…" autoComplete="off" required /></label>}
+                  {operation === 'transfer' && <label>Recipient address<input value={recipient} onChange={(event) => { setRecipient(event.target.value); setPreview(undefined); }} placeholder={`${ADDRESS_HRP}1…`} autoComplete="off" required /></label>}
                   {operation === 'mint' && <p>Only the issuer can mint. New units are issued to the selected account.</p>}
                 </>
               )}
@@ -208,7 +209,7 @@ export default function AssetPanel({ account }: { account: PublicAccount }) {
             </form>
             {preview && (
               <div className="preview-card">
-                <div className="confirmation-address"><span>{metadataId ? 'SET METADATA' : preview.operation.toUpperCase()} · ASSET #{preview.assetId} · TESTNET 115 · UNVERIFIED</span><code>{preview.name || 'Metadata is not set'} {preview.symbol ? `(${preview.symbol})` : ''}</code></div>
+                <div className="confirmation-address"><span>{metadataId ? 'SET METADATA' : preview.operation.toUpperCase()} · ASSET #{preview.assetId} · {NETWORK_LABEL.toUpperCase()} · UNVERIFIED</span><code>{preview.name || 'Metadata is not set'} {preview.symbol ? `(${preview.symbol})` : ''}</code></div>
                 {preview.recipient && <div className="confirmation-address"><span>Recipient</span><code>{preview.recipient}</code></div>}
                 {preview.operation !== 'create' && <p>Amount <strong>{formatAsset(preview.amount, preview.decimals, preview.symbol)}</strong></p>}
                 <p>{metadataId ? 'Maximum total gas (create + metadata)' : 'Maximum total gas'} <strong>{formatMfc(preview.fee)}</strong></p>
@@ -229,7 +230,7 @@ export default function AssetPanel({ account }: { account: PublicAccount }) {
           {historyPage?.source === 'local' && <p className="watch-note">Explorer is unavailable. Showing local asset history only.</p>}
           {history.length ? history.map((entry) => (
             <article className="history-entry" key={entry.id || entry.hash}>
-              <a href={entry.hash ? `https://mf.life/explorer/#/tx/${entry.hash}` : `https://mf.life/explorer/#/asset/${entry.assetId}`} target="_blank" rel="noreferrer">
+              <a href={entry.hash ? `${EXPLORER_WEB_URL}/#/tx/${entry.hash}` : `${EXPLORER_WEB_URL}/#/asset/${entry.assetId}`} target="_blank" rel="noreferrer">
                 <div><strong>{historyTitle(entry)} · #{entry.assetId}</strong><span>{entry.status}</span></div>
                 <p>{entry.amount && entry.decimals !== undefined ? formatAsset(entry.amount, entry.decimals, entry.symbol || '') : entry.name || entry.symbol || 'Asset operation'}</p>
                 <p>Fee {formatMfc(entry.fee)}{entry.stage === 'metadata' ? ' · two transactions' : ''}</p>

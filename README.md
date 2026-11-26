@@ -54,6 +54,8 @@ The extension is generated in `build/`. Load that directory through `chrome://ex
 
 For a local devnet, set `MFCOIN_RPC_URL`, `MFCOIN_GENESIS_HASH` and optionally `MFCOIN_FINALITY_TIMEOUT_MS`, `MFCOIN_LOCK_TIMEOUT_MS` or `MFCOIN_EXPLORER_URL` before building. Localhost permissions are added only when the configured RPC URL is local.
 
+The default build remains pinned to Testnet 115 and preserves the existing storage keys. A Main Net build requires `MFCOIN_NETWORK=mainnet`, `MFCOIN_RPC_URL`, `MFCOIN_GENESIS_HASH`, `MFCOIN_EXPLORER_URL` and `MFCOIN_EXPLORER_WEB_URL`; it uses `mfcx` addresses, separate vault/account/history storage and a separate `mfcoin-wallet-chrome-mainnet-VERSION.zip` package. Do not build or publish the Main Net package until the reviewed genesis hash and public production endpoints are available.
+
 The PWA build is generated in `dist-web/`. For the Android WebView wrapper and APK instructions, see [ANDROID.md](ANDROID.md).
 
 ## Verification

@@ -4,10 +4,11 @@ import { mnemonicGenerate, mnemonicToMiniSecret, mnemonicValidate } from '@polka
 import { hexToU8a, u8aToHex } from '@polkadot/util';
 import { encodeAddress, validateAddress } from '../lib/mfc-address.js';
 import type { AccountKind, BackupChallenge, MfcNetwork, PublicAccount, WalletState } from '../shared/accounts';
+import { ADDRESS_HRP, assertWalletNetwork, networkStorageKey, WALLET_NETWORK } from '../shared/network';
 import { deleteSecret, hasVault, isUnlocked, readSecret, storeSecret, unlockVault } from './vault';
 
-const ACCOUNTS_KEY = 'mfcoin.accounts.v1';
-const CURRENT_KEY = 'mfcoin.currentAccount.v1';
+const ACCOUNTS_KEY = networkStorageKey('mfcoin.accounts.v1');
+const CURRENT_KEY = networkStorageKey('mfcoin.currentAccount.v1');
 let cryptoReady: Promise<unknown> | undefined;
 let pendingCreation: (BackupChallenge & { name: string; accountId: string }) | undefined;
 
@@ -35,7 +36,8 @@ function storageSet(values: Record<string, unknown>): Promise<void> {
 }
 
 async function readAccounts(): Promise<PublicAccount[]> {
-  return (await storageGet<PublicAccount[]>(ACCOUNTS_KEY)) || [];
+  const accounts = (await storageGet<PublicAccount[]>(ACCOUNTS_KEY)) || [];
+  return accounts.filter((account) => account.network === WALLET_NETWORK);
 }
 
 export async function getAccountById(id: string): Promise<PublicAccount | undefined> {
@@ -64,6 +66,7 @@ function assertUnique(accountId: string, accounts: PublicAccount[]): void {
 }
 
 async function persistAccount(id: string, name: string, kind: AccountKind, network: MfcNetwork, accountId: string, secret?: string): Promise<WalletState> {
+  assertWalletNetwork(network);
   if (!isUnlocked()) throw new Error('Wallet is locked');
   const accounts = await readAccounts();
   const normalizedName = validateName(name, accounts);
@@ -73,7 +76,7 @@ async function persistAccount(id: string, name: string, kind: AccountKind, netwo
   const account: PublicAccount = {
     id,
     accountId,
-    address: encodeAddress(network === 'mainnet' ? 'mfcx' : 'tmfcx', accountId),
+    address: encodeAddress(ADDRESS_HRP, accountId),
     name: normalizedName,
     kind,
     network,
@@ -117,7 +120,7 @@ export async function confirmBackup(creationId: string, words: string[]): Promis
   const expectedWords = pending.mnemonic.split(' ');
   const valid = pending.wordIndexes.every((wordIndex, index) => words[index]?.trim().toLowerCase() === expectedWords[wordIndex]);
   if (!valid) throw new Error('Backup words do not match');
-  const state = await persistAccount(pending.creationId, pending.name, 'seed', 'testnet', pending.accountId, pending.mnemonic);
+  const state = await persistAccount(pending.creationId, pending.name, 'seed', WALLET_NETWORK, pending.accountId, pending.mnemonic);
   pendingCreation = undefined;
   return state;
 }
@@ -127,7 +130,7 @@ export async function importSeed(name: string, mnemonic: string): Promise<Wallet
   const normalized = mnemonic.trim().toLowerCase().replace(/\s+/g, ' ');
   if (!mnemonicValidate(normalized)) throw new Error('Invalid seed phrase');
   const pair = new Keyring({ ss58Format: 42, type: 'sr25519' }).addFromUri(normalized);
-  return persistAccount(crypto.randomUUID(), name, 'seed', 'testnet', u8aToHex(pair.publicKey), normalized);
+  return persistAccount(crypto.randomUUID(), name, 'seed', WALLET_NETWORK, u8aToHex(pair.publicKey), normalized);
 }
 
 export async function importPrivateKey(name: string, privateKey: string): Promise<WalletState> {
@@ -135,11 +138,11 @@ export async function importPrivateKey(name: string, privateKey: string): Promis
   const normalized = privateKey.trim().startsWith('0x') ? privateKey.trim() : `0x${privateKey.trim()}`;
   if (!/^0x[0-9a-fA-F]{64}$/.test(normalized)) throw new Error('Private key must contain exactly 32 bytes in hexadecimal form');
   const pair = new Keyring({ ss58Format: 42, type: 'sr25519' }).addFromSeed(hexToU8a(normalized));
-  return persistAccount(crypto.randomUUID(), name, 'privateKey', 'testnet', u8aToHex(pair.publicKey), normalized);
+  return persistAccount(crypto.randomUUID(), name, 'privateKey', WALLET_NETWORK, u8aToHex(pair.publicKey), normalized);
 }
 
 export async function addWatchOnly(name: string, address: string, network: MfcNetwork): Promise<WalletState> {
-  const accountId = validateAddress(network === 'mainnet' ? 'mfcx' : 'tmfcx', address.trim());
+  const accountId = validateAddress(ADDRESS_HRP, address.trim());
   return persistAccount(crypto.randomUUID(), name, 'watchOnly', network, accountId);
 }
 

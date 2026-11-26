@@ -11,13 +11,14 @@ import { readSecret } from './vault';
 import { acquireAccountLock, hasPendingTransaction } from './transaction-lock';
 import { validateHistoryPage } from './explorer-validation';
 import { reconciliationExpired, reconciliationScanUntil } from './reconcile';
+import { ADDRESS_HRP, assertWalletNetwork, NETWORK_LABEL, networkStorageKey, WALLET_NETWORK } from '../shared/network';
 
 const RPC_URL = process.env.MFCOIN_RPC_URL || 'wss://mf.life/ws';
 const EXPLORER_URL = process.env.MFCOIN_EXPLORER_URL || 'https://mf.life/api/explorer';
 const GENESIS_HASH = process.env.MFCOIN_GENESIS_HASH || '0xdb6842ad250eddde81a55be24cd1ef203bce74515ecca97eaac70fed44039092';
 const FINALITY_TIMEOUT_MS = Number(process.env.MFCOIN_FINALITY_TIMEOUT_MS || 90_000);
 const UNIT = 1_000_000_000_000n;
-const HISTORY_KEY = 'mfcoin.history.v1';
+const HISTORY_KEY = networkStorageKey('mfcoin.history.v1');
 const MORTALITY_BLOCKS = 64;
 let apiPromise: Promise<ApiPromise> | undefined;
 let reconciling = false;
@@ -89,7 +90,7 @@ export async function getBalance(accountId: string): Promise<BalanceView> {
 
 async function createPreview(sender: string, recipient: string, amount: string): Promise<TransferPreview> {
   const decodedRecipient = decodeAddress(recipient);
-  if (decodedRecipient.network !== 'testnet') throw new Error('Recipient address is not a Testnet 115 address');
+  if (decodedRecipient.network !== WALLET_NETWORK) throw new Error(`Recipient address is not a ${NETWORK_LABEL} address`);
   const amountBase = parseMfcAmount(amount);
   const api = await getApi();
   const [account, extrinsic] = await Promise.all([
@@ -212,7 +213,7 @@ async function transferUnlocked(accountId: string, recipient: string, amount: st
   const account = await getAccountById(accountId);
   if (!account) throw new Error('Account not found');
   if (account.kind === 'watchOnly') throw new Error('Watch-only accounts cannot sign');
-  if (account.network !== 'testnet') throw new Error('Mainnet transfers are not live');
+  assertWalletNetwork(account.network);
 
   const preview = await createPreview(account.accountId, recipient, amount);
   if (!/^\d+$/.test(maxFee)) throw new Error('A valid maximum fee is required');
@@ -357,7 +358,7 @@ export async function getHistory(accountId: string, direction?: HistoryDirection
   const localHistory = (await readHistory()).filter((entry) => entry.sender === accountId || entry.recipient === accountId);
   const params = new URLSearchParams({ limit: '30' });
   if (direction && cursor) params.set(direction, cursor);
-  const address = encodeAddress('tmfcx', accountId);
+  const address = encodeAddress(ADDRESS_HRP, accountId);
 
   try {
     const response = await fetch(`${EXPLORER_URL}/accounts/${address}/activity?${params}`, {

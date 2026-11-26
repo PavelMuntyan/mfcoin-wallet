@@ -1,4 +1,6 @@
-const VAULT_META_KEY = 'mfcoin.vault.meta.v1';
+import { networkStorageKey } from '../shared/network';
+
+const VAULT_META_KEY = networkStorageKey('mfcoin.vault.meta.v1');
 const ITERATIONS = 600_000;
 const LOCK_AFTER_MS = Number(process.env.MFCOIN_LOCK_TIMEOUT_MS || 15 * 60 * 1000);
 const encoder = new TextEncoder();
@@ -131,13 +133,13 @@ export async function unlockVault(password: string): Promise<void> {
 export async function storeSecret(id: string, accountId: string, secret: string): Promise<void> {
   if (!vaultKey) throw new Error('Wallet is locked');
   const encrypted = await encrypt(secret, vaultKey, `${id}:${accountId}`);
-  await storageSet({ [`mfcoin.secret.${id}`]: encrypted });
+  await storageSet({ [networkStorageKey(`mfcoin.secret.${id}`)]: encrypted });
   scheduleLock();
 }
 
 export async function readSecret(id: string, accountId: string): Promise<string> {
   if (!vaultKey) throw new Error('Wallet is locked');
-  const storageKey = `mfcoin.secret.${id}`;
+  const storageKey = networkStorageKey(`mfcoin.secret.${id}`);
   const encrypted = await storageGet<EncryptedValue>(storageKey);
   if (!encrypted) throw new Error('Account secret not found');
   if (encrypted.v === 2) {
@@ -152,5 +154,5 @@ export async function readSecret(id: string, accountId: string): Promise<string>
 }
 
 export async function deleteSecret(id: string): Promise<void> {
-  await storageRemove(`mfcoin.secret.${id}`);
+  await storageRemove(networkStorageKey(`mfcoin.secret.${id}`));
 }
