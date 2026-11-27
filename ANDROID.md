@@ -20,4 +20,15 @@ The APK is generated as `android/app/build/outputs/apk/debug/app-debug.apk`. Ins
 
 ## Network and signing
 
-The default build connects only to the existing Testnet 115 endpoint at `wss://mf.life/ws` and its pinned genesis. Do not point an APK at Main Net before the Main Net launch checks are complete. Main Net support requires a new build with the production RPC URL and genesis hash, followed by account, receive, transfer and persistence testing on a real device.
+The default build connects only to Testnet 115 at `wss://mf.life/ws` and its pinned genesis. The Main Net package must be built explicitly with the production endpoints and genesis:
+
+```sh
+MFCOIN_NETWORK=mainnet \
+MFCOIN_RPC_URL=wss://mf.life/mainnet-ws \
+MFCOIN_EXPLORER_URL=https://mf.life/api/mainnet-explorer \
+MFCOIN_EXPLORER_WEB_URL=https://mf.life/mainnet-explorer/ \
+MFCOIN_GENESIS_HASH=0x4ab2663e09fc2758b1a3702d91b853949708570502ac099a67abc1aad9167d0e \
+NODE_ENV=production npm run build
+```
+
+Then run the Gradle build shown above. The resulting Main Net debug package is distributed as `mfcoin-wallet-android-mainnet-0.6.2-test.apk` with a separate SHA-256 file. It remains a debug-signed test build, not a Play Store release. Device-level account, receive, transfer and persistence checks are still required before treating the Android package as a production release.
