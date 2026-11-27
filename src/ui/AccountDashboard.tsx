@@ -46,6 +46,7 @@ export default function AccountDashboard({ state, onChange, onLock }: Props) {
   const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [hexCopied, setHexCopied] = useState(false);
   const accountMenuRef = useRef<HTMLElement>(null);
 
   const current = state.accounts.find((account) => account.id === state.currentAccountId) || state.accounts[0];
@@ -143,6 +144,13 @@ export default function AccountDashboard({ state, onChange, onLock }: Props) {
     setTimeout(() => setCopied(false), 1200);
   }
 
+  async function copyAccountId() {
+    if (!current) return;
+    await navigator.clipboard.writeText(current.accountId);
+    setHexCopied(true);
+    setTimeout(() => setHexCopied(false), 1200);
+  }
+
   return (
     <section className="dashboard">
       <div className="section-heading">
@@ -190,6 +198,9 @@ export default function AccountDashboard({ state, onChange, onLock }: Props) {
           </button>
           <button className="address-button" type="button" onClick={copyAddress} title={current.address}>
             {shortAddress(current)} <span>{copied ? 'Copied' : 'Copy'}</span>
+          </button>
+          <button className="address-button" type="button" onClick={copyAccountId} title={current.accountId} aria-label="Copy AccountId (Hex) for mining">
+            AccountId (Hex) for mining <span>{hexCopied ? 'Copied' : 'Copy'}</span>
           </button>
           {accountMenuOpen && (
             <div className="account-options" role="listbox" aria-label="Available accounts">
