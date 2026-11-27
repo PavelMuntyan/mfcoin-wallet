@@ -6,7 +6,7 @@ import { readFileSync } from 'node:fs';
 test('release ZIP contains extension files at the archive root', () => {
   const packaged = spawnSync('node', ['scripts/package-release.mjs'], { encoding: 'utf8' });
   assert.equal(packaged.status, 0, packaged.stderr);
-  const listing = spawnSync('unzip', ['-Z1', 'dist/mfcoin-wallet-chrome-0.6.5.zip'], { encoding: 'utf8' });
+  const listing = spawnSync('unzip', ['-Z1', 'dist/mfcoin-wallet-chrome-0.6.6.zip'], { encoding: 'utf8' });
   assert.equal(listing.status, 0, listing.stderr);
   const files = listing.stdout.trim().split(/\r?\n/);
   assert.ok(files.includes('index.html'));

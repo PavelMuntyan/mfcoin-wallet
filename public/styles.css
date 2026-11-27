@@ -244,3 +244,11 @@ html.side-panel { --side-panel-scale: 1; }
   html.side-panel body { overflow-x: hidden; }
   html.side-panel .wallet-shell { width: 320px; zoom: var(--side-panel-scale); }
 }
+
+.transaction-progress { display: flex; align-items: center; gap: 10px; margin: 0; padding: 0 16px 16px; color: var(--accent); font-size: 13px; line-height: 1.5; }
+.transaction-spinner { width: 16px; height: 16px; flex: 0 0 16px; border: 2px solid var(--line); border-top-color: var(--accent); border-radius: 50%; animation: transaction-spin .8s linear infinite; }
+.transaction-result { display: grid; gap: 10px; margin: 0; padding: 0 16px 16px; color: var(--accent); font-size: 13px; line-height: 1.5; }
+.transaction-link { display: grid; gap: 7px; color: var(--accent); overflow-wrap: anywhere; }
+.transaction-link code { color: var(--text); overflow-wrap: anywhere; }
+@keyframes transaction-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .transaction-spinner { animation: none; } }

@@ -16,3 +16,16 @@ test('native transfer shows immediate progress and errors next to the send form'
   assert.ok(panel.includes("busy ? 'Signing and sending…' : 'Sign and send'"));
   assert.ok(panel.indexOf('{error &&') < panel.indexOf('<AssetPanel'));
 });
+
+
+test('native transfer hides the hash while pending and links it after finalization', () => {
+  assert.ok(panel.includes('resultHistoryStatus'));
+  assert.ok(panel.includes('transactionPending'));
+  assert.ok(panel.includes('transaction-spinner'));
+  assert.ok(panel.includes('Transaction is on its way. Waiting for finalization…'));
+  assert.ok(panel.includes('href={`${EXPLORER_WEB_URL}/#/tx/${result.hash}`}'));
+  assert.ok(panel.includes('<code>{result.hash}</code>'));
+  assert.ok(!panel.includes('<code>{shortHash(result.hash)}</code>'));
+  const styles = readFileSync('public/styles.css', 'utf8');
+  assert.ok(styles.includes('@keyframes transaction-spin'));
+});

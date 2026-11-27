@@ -31,4 +31,4 @@ MFCOIN_GENESIS_HASH=0x4ab2663e09fc2758b1a3702d91b853949708570502ac099a67abc1aad9
 NODE_ENV=production npm run build
 ```
 
-Then run the Gradle build shown above. The resulting Main Net debug package is distributed as `mfcoin-wallet-android-mainnet-0.6.2-test.apk` with a separate SHA-256 file. It remains a debug-signed test build, not a Play Store release. Device-level account, receive, transfer and persistence checks are still required before treating the Android package as a production release.
+Then run the Gradle build shown above. The resulting Main Net debug package is distributed as `mfcoin-wallet-android-mainnet-0.6.6-test.apk` with a separate SHA-256 file. It remains a debug-signed test build, not a Play Store release. Device-level account, receive, transfer and persistence checks are still required before treating the Android package as a production release.

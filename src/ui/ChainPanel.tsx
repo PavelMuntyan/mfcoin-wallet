@@ -41,15 +41,21 @@ export default function ChainPanel({ account, onChange, onDeleted }: Props) {
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [copied, setCopied] = useState(false);
   const requestGeneration = useRef(0);
   const history = historyPage?.balanceEvents || [];
   const hasPending = history.some((entry) => entry.sender === account.accountId && entry.status === 'pending');
+  const resultHistoryStatus = result ? history.find((entry) => entry.hash === result.hash)?.status : undefined;
+  const resultStatus = resultHistoryStatus || result?.status;
+  const transactionPending = submitting || resultStatus === 'pending';
+  const finalizedResult = result && (resultStatus === 'finalized' || resultStatus === 'failed');
 
   useEffect(() => {
     const generation = ++requestGeneration.current;
     setPreview(undefined);
     setResult(undefined);
+    setSubmitting(false);
     setError('');
     setNotice('');
     setBalance('');
@@ -120,6 +126,7 @@ export default function ChainPanel({ account, onChange, onDeleted }: Props) {
     if (!preview || hasPending) return;
     const generation = requestGeneration.current;
     setBusy(true);
+    setSubmitting(true);
     setError('');
     setNotice('');
     try {
@@ -138,7 +145,10 @@ export default function ChainPanel({ account, onChange, onDeleted }: Props) {
     } catch (caught) {
       if (generation === requestGeneration.current) setError(caught instanceof Error ? caught.message : 'Transfer failed');
     } finally {
-      if (generation === requestGeneration.current) setBusy(false);
+      if (generation === requestGeneration.current) {
+        setBusy(false);
+        setSubmitting(false);
+      }
     }
   }
 
@@ -163,7 +173,7 @@ export default function ChainPanel({ account, onChange, onDeleted }: Props) {
       {account.kind !== 'watchOnly' && account.network === WALLET_NETWORK ? (
         <details className="send-panel">
           <summary>Send MFC</summary>
-          {hasPending && <p className="watch-note">A transaction is pending. Wait for a final status before sending another one.</p>}
+          {hasPending && !transactionPending && <p className="watch-note">A transaction is pending. Wait for a final status before sending another one.</p>}
           <form className="form-stack" onSubmit={previewTransfer}>
             <label>Recipient address<input value={recipient} onChange={(event) => { setRecipient(event.target.value); setPreview(undefined); }} placeholder={`${ADDRESS_HRP}1…`} autoComplete="off" required /></label>
             <label>Amount<input value={amount} onChange={(event) => { setAmount(event.target.value); setPreview(undefined); }} placeholder="0.001" inputMode="decimal" required /></label>
@@ -179,7 +189,8 @@ export default function ChainPanel({ account, onChange, onDeleted }: Props) {
               <button className="primary-button" type="button" disabled={busy || hasPending} onClick={confirmTransfer}>{busy ? 'Signing and sending…' : 'Sign and send'}</button>
             </div>
           )}
-          {result && <p className="form-notice">{result.status === 'finalized' ? 'Finalized' : result.status === 'pending' ? 'Pending' : 'Not finalized'} transaction: <code>{shortHash(result.hash)}</code></p>}
+          {transactionPending && <p className="transaction-progress" role="status"><span className="transaction-spinner" aria-hidden="true" />Transaction is on its way. Waiting for finalization…</p>}
+          {finalizedResult && <p className="transaction-result"><span>{resultStatus === 'finalized' ? 'Transaction finalized' : 'Transaction included but failed'}</span><a className="transaction-link" href={`${EXPLORER_WEB_URL}/#/tx/${result.hash}`} target="_blank" rel="noreferrer"><code>{result.hash}</code><span>Open in Explorer ↗</span></a></p>}
         </details>
       ) : (
         <p className="watch-note">{account.kind === 'watchOnly' ? 'Watch-only accounts cannot sign transactions.' : 'Account network does not match this wallet build.'}</p>

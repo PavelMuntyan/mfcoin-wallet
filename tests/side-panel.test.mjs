@@ -9,7 +9,7 @@ const sidePanel = readFileSync('public/sidepanel.html', 'utf8');
 const entry = readFileSync('src/index.tsx', 'utf8');
 
 test('extension supports a right browser side panel and preserves the popup', () => {
-  assert.equal(manifest.version, '0.6.5');
+  assert.equal(manifest.version, '0.6.6');
   assert.equal(manifest.minimum_chrome_version, '116');
   assert.ok(manifest.permissions.includes('sidePanel'));
   assert.equal(manifest.side_panel.default_path, 'sidepanel.html');
