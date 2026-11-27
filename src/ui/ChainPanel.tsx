@@ -129,7 +129,8 @@ export default function ChainPanel({ account, onChange, onDeleted }: Props) {
       setPreview(undefined);
       setRecipient('');
       setAmount('');
-      if (response.data.status === 'finalized') setNotice('Transaction finalized');
+      if (response.data.error) setError(response.data.error);
+      else if (response.data.status === 'finalized') setNotice('Transaction finalized');
       else if (response.data.status === 'pending') setNotice('Transaction submitted. Waiting for finalization; do not submit it again.');
       else if (response.data.status === 'dropped') setError('Transaction expired or was dropped. Review it before trying again.');
       else setError('Transaction was included but failed. Review the history before trying again.');
@@ -166,7 +167,7 @@ export default function ChainPanel({ account, onChange, onDeleted }: Props) {
           <form className="form-stack" onSubmit={previewTransfer}>
             <label>Recipient address<input value={recipient} onChange={(event) => { setRecipient(event.target.value); setPreview(undefined); }} placeholder={`${ADDRESS_HRP}1…`} autoComplete="off" required /></label>
             <label>Amount<input value={amount} onChange={(event) => { setAmount(event.target.value); setPreview(undefined); }} placeholder="0.001" inputMode="decimal" required /></label>
-            <button className="primary-button" type="submit" disabled={busy || hasPending}>Calculate gas</button>
+            <button className="primary-button" type="submit" disabled={busy || hasPending}>{busy ? 'Calculating…' : 'Calculate gas'}</button>
           </form>
           {preview && (
             <div className="preview-card">
@@ -175,7 +176,7 @@ export default function ChainPanel({ account, onChange, onDeleted }: Props) {
               <p>Fee cap checked again before signing <strong>{formatMfc(preview.fee)}</strong></p>
               <p>Total <strong>{formatMfc(preview.total)}</strong></p>
               <p>Remaining <strong>{formatMfc(preview.remaining)}</strong></p>
-              <button className="primary-button" type="button" disabled={busy || hasPending} onClick={confirmTransfer}>Sign and send</button>
+              <button className="primary-button" type="button" disabled={busy || hasPending} onClick={confirmTransfer}>{busy ? 'Signing and sending…' : 'Sign and send'}</button>
             </div>
           )}
           {result && <p className="form-notice">{result.status === 'finalized' ? 'Finalized' : result.status === 'pending' ? 'Pending' : 'Not finalized'} transaction: <code>{shortHash(result.hash)}</code></p>}
@@ -184,10 +185,10 @@ export default function ChainPanel({ account, onChange, onDeleted }: Props) {
         <p className="watch-note">{account.kind === 'watchOnly' ? 'Watch-only accounts cannot sign transactions.' : 'Account network does not match this wallet build.'}</p>
       )}
 
-      {account.network === WALLET_NETWORK && <AssetPanel account={account} />}
-
       {error && <p className="form-error" role="alert">{error}</p>}
       {notice && <p className="form-notice" role="status">{notice}</p>}
+
+      {account.network === WALLET_NETWORK && <AssetPanel account={account} />}
 
       {account.network === WALLET_NETWORK && (
         <details className="history-panel">

@@ -18,6 +18,7 @@ export interface TransferResult extends TransferPreview {
   hash: string;
   blockHash: string | null;
   status: TransferStatus;
+  error?: string;
 }
 
 export interface HistoryEntry {

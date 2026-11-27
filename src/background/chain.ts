@@ -300,7 +300,8 @@ async function transferUnlocked(accountId: string, recipient: string, amount: st
     hash: entry.hash,
     blockHash: outcome.blockHash,
     status: outcome.status,
-    fee: outcome.fee
+    fee: outcome.fee,
+    error: outcome.error
   };
 }
 
